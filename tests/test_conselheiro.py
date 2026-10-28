@@ -8,10 +8,10 @@ from langchain_core.runnables import RunnableLambda
 
 from conselheiro.chains import Avaliacao, Pedido, chain_avaliar, chain_interpretar, chain_responder
 from conselheiro.config import Settings
-from conselheiro.conselheiro import Conselheiro, mesclar, orcamento_na_mensagem, parse_gp
+from conselheiro.conselheiro import Conselheiro, limitar_frases, mesclar, orcamento_na_mensagem, parse_gp
 from conselheiro.dados import GameData
 from conselheiro.guias import carregar_guias, identificar_boss
-from conselheiro.otimizador import Otimizador, Perfil
+from conselheiro.otimizador import AMMO_STACK, Otimizador, Perfil
 
 
 @pytest.fixture(scope="module")
@@ -98,6 +98,33 @@ def test_otimizador_respeita_orcamento_e_itens(data):
     # aplicar todos os upgrades leva exatamente ao recomendado
     ganho = sum(u.ganho_dps for u in resultado.upgrades)
     assert resultado.atual.dps + ganho == pytest.approx(resultado.recomendado.dps)
+
+
+def test_arma_de_arremesso_custa_uma_pilha(data):
+    otimizador = Otimizador(data, Perfil(), [data.monster("Giant Mole")], "ranged", 0)
+    faca, blowpipe = data.find_item("Dragon knife"), data.find_item("Toxic blowpipe")
+    assert otimizador.custo(faca) == data.price(faca) * AMMO_STACK
+    # o blowpipe também é "Thrown", mas não se gasta
+    assert otimizador.custo(blowpipe) == data.price(blowpipe)
+
+
+def test_itens_deadman_usam_o_nome_do_ge(data):
+    assert "Morrigan's javelin" in data.usable
+    assert not [n for n in data.usable if n.endswith("(Deadman Mode)") and data.price(data.usable[n])]
+
+
+def test_sem_arma_no_estilo_a_arma_vem_primeiro(data):
+    perfil = Perfil(orcamento=30_000_000, itens=[data.find_item("bp")])
+    resultado = Otimizador(data, perfil, [data.monster("General Graardor")], "melee", 30_000_000).resolver()
+    assert "weapon" not in resultado.atual.equipment
+    assert resultado.upgrades[0].slot == "weapon"
+
+
+def test_limitar_frases_corta_loop_e_mantem_linhas():
+    assert limitar_frases("Uma. Duas.\nTrês com 9.38 DPS.", maximo=2) == "Uma. Duas."
+    loop = "Compre a arma.\n" + "O Shark é mais barato.\n" * 30
+    assert limitar_frases(loop).count("\n") == 7
+    assert limitar_frases("Curta e sem ponto") == "Curta e sem ponto"
 
 
 def test_zulrah_so_aceita_alabarda_no_melee(data):

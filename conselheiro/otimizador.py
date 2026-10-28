@@ -6,6 +6,7 @@ Nada aqui usa LLM: os números saem de calc.py com os dados da Wiki e os preços
 from __future__ import annotations
 
 import math
+import re
 from dataclasses import dataclass, field
 
 from conselheiro.calc import MELEE_TYPES, Calc, Item, Monster, Player, Style
@@ -14,6 +15,8 @@ from conselheiro.dados import GameData
 ARMOR_SLOTS = ("head", "cape", "neck", "body", "legs", "hands", "feet", "ring", "shield")
 # munição e dardos são consumidos: o custo considera uma pilha para começar
 AMMO_STACK = 500
+# armas de arremesso que se gastam a cada ataque (o blowpipe e o Tonalztics também são "Thrown", mas não)
+ARREMESSO_RE = re.compile(r" (dart|knife|thrownaxe|throwing axe|javelin)$|^Toktz-xil-ul$")
 MAX_WEAPONS = 14
 
 POWERED_STAVES = {
@@ -75,6 +78,10 @@ class Perfil:
     task: bool = False
 
 
+def arremesso(item: Item) -> bool:
+    return item.slot == "weapon" and item.category == "Thrown" and bool(ARREMESSO_RE.search(item.name))
+
+
 @dataclass
 class Setup:
     style: Style
@@ -84,10 +91,13 @@ class Setup:
     custo: int
     detalhes: list[dict] = field(default_factory=list)
 
-    def nomes(self) -> dict[str, str]:
-        names = {slot: item.name for slot, item in self.equipment.items()}
+    def nomes(self, tenho: set[str] | frozenset[str] = frozenset()) -> dict[str, str]:
+        # a marca fica colada no item: "Toxic blowpipe (já tem) + Dragon dart", não depois do dardo
+        names = {slot: item.name + (" (já tem)" if item.name in tenho else "") for slot, item in self.equipment.items()}
         if self.dart:
-            names["weapon"] = f"{names['weapon']} ({self.dart.name})"
+            names["weapon"] += f" + {self.dart.name}"
+        elif (weapon := self.equipment.get("weapon")) and arremesso(weapon):
+            names["weapon"] = f"{AMMO_STACK}x {names['weapon']}"
         return names
 
 
@@ -170,22 +180,20 @@ class Otimizador:
     # -- custo e disponibilidade ------------------------------------------------------
 
     def custo(self, item: Item | None) -> int | None:
-        """Quanto custa comprar o item; munição e dardos ficam fora (são gasto por viagem)."""
-        if item is None or item.name in self.owned or self._consumivel(item):
+        """Quanto custa comprar o item; munição fica fora (é gasto por viagem) e arma de arremesso conta uma pilha."""
+        if item is None or item.name in self.owned or item.slot == "ammo":
             return 0
-        return self.data.price(item)
-
-    @staticmethod
-    def _consumivel(item: Item) -> bool:
-        return item.slot == "ammo" or (item.category == "Thrown" and item.name.endswith(" dart"))
+        price = self.data.price(item)
+        return price * AMMO_STACK if price is not None and arremesso(item) else price
 
     def disponivel(self, item: Item) -> bool:
         if item.name in self.excluded:
             return False
         return item.name in self.owned or self.data.price(item) is not None
 
-    def custo_total(self, equipment: dict[str, Item], dart: Item | None) -> int:
-        return sum(self.custo(i) or 0 for i in equipment.values()) + (self.custo(dart) or 0)
+    def custo_total(self, equipment: dict[str, Item]) -> int:
+        # os dardos do blowpipe ficam fora, como a munição
+        return sum(self.custo(i) or 0 for i in equipment.values())
 
     def custo_municao(self, setup: Setup) -> int | None:
         """Preço de uma pilha de munição/dardos para começar (AMMO_STACK unidades)."""
@@ -320,7 +328,7 @@ class Otimizador:
                 for ammo in ammo_options:
                     for dart in dart_options:
                         eq = {"weapon": weapon} | ({"ammo": ammo} if ammo else {})
-                        cost = self.custo_total(eq, dart)
+                        cost = self.custo_total(eq)
                         if cost > budget:
                             continue
                         dps = self.avaliar(eq, dart, style)
@@ -349,7 +357,7 @@ class Otimizador:
         two_handed = equipment["weapon"].two_handed if "weapon" in equipment else False
         while True:
             base = self.avaliar(equipment, dart, style)
-            spent = self.custo_total(equipment, dart)
+            spent = self.custo_total(equipment)
             best = None
             moves: list[dict[str, Item]] = []
             for slot, items in armor.items():
@@ -362,7 +370,7 @@ class Otimizador:
                     moves.append({p.slot: p for p in pieces})
             for move in moves:
                 trial = equipment | move
-                cost = self.custo_total(trial, dart)
+                cost = self.custo_total(trial)
                 if cost > budget:
                     continue
                 gain = self.avaliar(trial, dart, style) - base
@@ -385,10 +393,10 @@ class Otimizador:
             start = base | {"weapon": weapon} | ({"ammo": ammo} if ammo else {})
             if weapon.two_handed:
                 start.pop("shield", None)
-            if self.custo_total(start, dart) > budget:
+            if self.custo_total(start) > budget:
                 start = {"weapon": weapon} | ({"ammo": ammo} if ammo else {})
             equipment = self._preencher(start, dart, style, budget, armor)
-            setup = Setup(style, equipment, dart, self.avaliar(equipment, dart, style), self.custo_total(equipment, dart))
+            setup = Setup(style, equipment, dart, self.avaliar(equipment, dart, style), self.custo_total(equipment))
             if best is None or setup.dps > best.dps + 1e-9:
                 best = setup
         if best is None:
@@ -414,21 +422,27 @@ class Otimizador:
         equipment, dart, style = dict(atual.equipment), atual.dart, atual.style
         upgrades: list[Upgrade] = []
         while moves:
-            base, spent = self.avaliar(equipment, dart, style), self.custo_total(equipment, dart)
+            base, spent = self.avaliar(equipment, dart, style), self.custo_total(equipment)
             ranked = []
             for slot, change in moves.items():
                 trial = {k: v for k, v in (equipment | change).items() if v is not None}
                 t_dart, t_style = (alvo.dart, alvo.style) if slot == "weapon" else (dart, style)
                 gain = self.avaliar(trial, t_dart, t_style) - base
-                delta = self.custo_total(trial, t_dart) - spent
+                delta = self.custo_total(trial) - spent
                 ratio = gain / delta if delta > 0 else (math.inf if gain > 0 else -math.inf)
                 ranked.append(((ratio, gain), slot, trial, t_dart, t_style, gain, delta))
-            _, slot, trial, dart_new, style_new, gain, delta = max(ranked, key=lambda r: r[0])
+            escolha = max(ranked, key=lambda r: r[0])
+            if "weapon" in moves and equipment.get("weapon") is None:
+                # sem arma no estilo, qualquer outra troca só melhoraria o soco
+                escolha = next(r for r in ranked if r[1] == "weapon")
+            _, slot, trial, dart_new, style_new, gain, delta = escolha
             old = equipment.get(slot)
             new = trial.get(slot)
             label = new.name if new else "(nada)"
+            if new is not None and arremesso(new):
+                label = f"{AMMO_STACK}x {label}"
             if slot == "weapon" and dart_new:
-                label = f"{label} ({dart_new.name})"
+                label = f"{label} + {dart_new.name}"
             if slot == "weapon" and trial.get("ammo"):
                 label = f"{label} + {trial['ammo'].name}"
             ja_tem = new is not None and new.name in self.owned

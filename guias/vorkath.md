@@ -52,7 +52,7 @@ Vorkath alterna 6 ataques normais (melee, magia, ranged e fogo de dragão) com u
 - **Fogo venenoso:** envenena; leve anti-venom.
 - **Fogo corrompido:** desliga todas as prayers; configure as quick-prayers para religar na hora. Por isso as poções *divine* valem a pena.
 - **Bola de fogo vertical:** quase sempre mata; ande dois tiles para o lado assim que ela é lançada.
-- **Especial de ácido (rapid fire):** o chão fica cheio de ácido e Vorkath atira no seu tile a cada tick. Ande em linha reta por tiles limpos, sem parar, até acabar. Pisar no ácido cura o Vorkath.
+- **Especial de ácido (rapid fire):** o chão fica cheio de ácido e Vorkath atira no seu tile a cada tick. Ande em linha reta por tiles limpos, sem parar, até acabar. Não pise no ácido: ele te dá dano e cura o Vorkath.
 - **Especial de gelo (zombified spawn):** você congela e surge um zumbi (38 de vida) que explode ao chegar perto (até 60 de dano). Mate-o com **Crumble Undead**; leve runas (chaos + dust) ou um cajado para trocar. O Vorkath fica imune até o zumbi morrer.
 
 ## Dicas de setup

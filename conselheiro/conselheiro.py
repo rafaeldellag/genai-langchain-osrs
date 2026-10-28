@@ -17,6 +17,9 @@ from conselheiro.otimizador import AMMO_STACK, DEFAULT_LEVELS, Otimizador, Perfi
 
 # janela do histórico: as 4 interações (pergunta + resposta) mais recentes de cada boss
 JANELA_HISTORICO = 4
+# o prompt pede até 6 frases; acima de 8 é o modelo pequeno repetindo a mesma frase em loop
+MAX_FRASES = 8
+FIM_DE_FRASE = re.compile(r"[.!?]\n+|[.!?](?=\s|$)|\n+")
 SLOT_ORDER = ("weapon", "ammo", "head", "cape", "neck", "body", "shield", "legs", "hands", "feet", "ring")
 NIVEIS_PEDIDO = {
     "ataque": "atk", "forca": "str", "defesa": "def", "ranged": "ranged",
@@ -65,6 +68,13 @@ def fmt_gp(valor: int | None) -> str:
         if abs(valor) >= limite:
             return f"{valor / limite:.1f}{sufixo}".replace(".0" + sufixo, sufixo)
     return str(valor)
+
+
+
+def limitar_frases(texto: str, maximo: int = MAX_FRASES) -> str:
+    """Corta o texto depois da enésima frase (ou linha), mantendo a formatação."""
+    fins = [m.end() for m in FIM_DE_FRASE.finditer(texto)]
+    return texto[: fins[maximo - 1]].strip() if len(fins) >= maximo else texto.strip()
 
 
 @dataclass
@@ -197,7 +207,8 @@ class Conselheiro:
             linhas.append("Você tem: " + ", ".join(i.name for i in perfil.itens))
         if desconhecidos:
             linhas.append("Não reconheci como equipamento: " + ", ".join(desconhecidos))
-        nao_tem = [n for n in guia.intransferiveis if n not in {i.name for i in perfil.itens}]
+        tenho = {i.name for i in perfil.itens}
+        nao_tem = [n for n in guia.intransferiveis if n not in tenho]
         if nao_tem:
             linhas.append("Fora do GE (diga se tiver, muda a conta): " + ", ".join(nao_tem))
 
@@ -224,9 +235,7 @@ class Conselheiro:
             linhas.append("  " + self.linha_estilo(rec, r))
             for slot in SLOT_ORDER:
                 if slot in rec.equipment:
-                    nome = rec.nomes()[slot]
-                    marca = " (já tem)" if rec.equipment[slot].name in {i.name for i in perfil.itens} else ""
-                    linhas.append(f"    {slot:7} {nome}{marca}")
+                    linhas.append(f"    {slot:7} {rec.nomes(tenho)[slot]}")
             for d in rec.detalhes:
                 linhas.append(f"    · {d['forma']}: {d['dps']} DPS, max hit {d['max_hit']}, acerto {d['acerto']:.0%}")
             if atual.dps > 0:
@@ -368,7 +377,8 @@ class Conselheiro:
                 "historico": historico,
                 "mensagem": mensagem_para_modelo,
             }
-        ).replace("**", "")
+        )
+        texto = limitar_frases(texto.replace("**", ""))
         historico.extend([("human", mensagem), ("ai", texto)])
         del historico[: max(0, len(historico) - 2 * JANELA_HISTORICO)]
         return Resposta(boss, novo.intencao, tabela, avaliacao, texto)

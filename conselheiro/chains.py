@@ -77,7 +77,7 @@ class Avaliacao(BaseModel):
     pontos_fracos: list[str] = Field(description="até 3 pontos fracos do setup atual")
 
 
-def criar_llm(settings: Settings, schema: type[BaseModel] | None = None) -> ChatOllama:
+def criar_llm(settings: Settings, schema: type[BaseModel] | None = None, num_predict: int | None = None) -> ChatOllama:
     return ChatOllama(
         model=settings.ollama_model,
         base_url=settings.ollama_base_url,
@@ -87,6 +87,7 @@ def criar_llm(settings: Settings, schema: type[BaseModel] | None = None) -> Chat
         format=schema.model_json_schema() if schema else None,
         # modelos com "thinking" (qwen3.x) ficam bem mais lentos pensando antes de responder
         reasoning=False,
+        num_predict=num_predict,
     )
 
 
@@ -165,4 +166,5 @@ def chain_responder(settings: Settings, llm: Runnable | None = None) -> Runnable
     prompt = ChatPromptTemplate(
         [("system", SISTEMA_RESPONDER), ("placeholder", "{historico}"), ("human", "{mensagem}")]
     )
-    return prompt | (llm or criar_llm(settings)) | StrOutputParser()
+    # uma resposta normal tem ~200 tokens; o teto só pesa quando o modelo pequeno entra em loop
+    return prompt | (llm or criar_llm(settings, num_predict=500)) | StrOutputParser()

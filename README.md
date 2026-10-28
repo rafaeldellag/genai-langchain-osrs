@@ -117,11 +117,13 @@ inventário precisam do nome exato do GE. `pytest` confere as duas coisas.
 
 - O setup maximiza dano e não considera defesa. Em bosses como o Graardor, você pode preferir trocar dano por
   armadura.
-- Não confere requisitos de nível dos itens.
+- Não confere requisitos de nível dos itens: com 80 de ataque, por exemplo, ainda pode sugerir a Osmumten's fang
+  (pede 82). Confira antes de comprar.
 - Ataques especiais, feitiços de spellbook e efeitos de raids ficam fora do cálculo. Em magia, só cajados com
   feitiço embutido (trident, sanguinesti, shadow...).
 - Itens que não se compram no GE só entram se você disser que tem.
-- Munição fica fora do orçamento; a tabela mostra o preço de 500 unidades à parte.
+- Munição e dardos do blowpipe ficam fora do orçamento; a tabela mostra o preço de 500 unidades à parte. Armas de
+  arremesso (facas, javelins, thrownaxes) entram no orçamento como uma pilha de 500.
 - O texto do modelo de 4B às vezes erra detalhes. A tabela é a fonte confiável.
 
 ## Créditos e licença

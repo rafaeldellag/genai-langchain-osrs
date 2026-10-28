@@ -5,7 +5,7 @@ from __future__ import annotations
 import difflib
 import json
 import time
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from functools import cached_property
 from pathlib import Path
 from typing import Any
@@ -112,6 +112,7 @@ class GameData:
         cache = settings.cache_dir
         raw_items = _cached_json(f"{CDN_URL}/equipment.json", cache / "equipment.json", GAME_DATA_TTL, settings)
         raw_monsters = _cached_json(f"{CDN_URL}/monsters.json", cache / "monsters.json", GAME_DATA_TTL, settings)
+        items = [Item.from_json(raw) for raw in raw_items]
         prices: dict[int, int] = {}
         ge_ids: dict[str, int] = {}
         if with_prices:
@@ -122,8 +123,14 @@ class GameData:
                     prices[int(raw_id)] = round(sum(values) / len(values))
             mapping = _cached_json(MAPPING_URL, cache / "mapping.json", GAME_DATA_TTL, settings)
             ge_ids = {entry["name"]: entry["id"] for entry in mapping if "name" in entry and "id" in entry}
+            # a calculadora chama de "(Deadman Mode)" itens que o jogo normal negocia no GE com o nome simples
+            ge_names = {item_id: name for name, item_id in ge_ids.items()}
+            items = [
+                replace(i, name=ge_names[i.id]) if i.name.endswith(" (Deadman Mode)") and i.id in ge_names else i
+                for i in items
+            ]
         return cls(
-            items=[Item.from_json(raw) for raw in raw_items],
+            items=items,
             monsters=[Monster.from_json(raw) for raw in raw_monsters],
             tables=Tables.from_json(json.loads(TABLES_PATH.read_text(encoding="utf-8"))),
             prices=prices,
