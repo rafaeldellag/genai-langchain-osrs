@@ -1,76 +1,59 @@
-"""Junta guias, otimizador e chains numa conversa com histórico separado por boss."""
+"""Uma conversa com o conselheiro: o agente LangChain em cima dos guias, do otimizador e dos preços.
+
+Cada boss tem a própria thread no checkpointer do agente, então o histórico de um não vaza para o outro.
+"""
 
 from __future__ import annotations
 
-import json
 import re
-from dataclasses import dataclass, field
+from collections.abc import Iterator
+from dataclasses import dataclass, field, replace
+from uuid import uuid4
 
 import httpx
 from langchain_core.exceptions import OutputParserException
+from langchain_core.messages import AIMessage, AIMessageChunk, HumanMessage, ToolMessage
 from langchain_core.runnables import Runnable
 from ollama import ResponseError
 
-from conselheiro.chains import Avaliacao, Pedido, chain_avaliar, chain_interpretar, chain_responder
+from conselheiro.agente import criar_agente
+from conselheiro.chains import Avaliacao, Pedido, chain_avaliar
 from conselheiro.config import Settings
 from conselheiro.dados import GameData
+from conselheiro.ferramentas import Contexto
 from conselheiro.guias import Guia, carregar_guias, identificar_boss
-from conselheiro.otimizador import AMMO_STACK, DEFAULT_LEVELS, Otimizador, Perfil, Resultado
+from conselheiro.otimizador import AMMO_STACK, DEFAULT_LEVELS, Otimizador, Perfil, Resultado, arremesso
+from conselheiro.texto import fmt_gp, orcamento_na_mensagem, parse_gp
 
-# janela do histórico: as 4 interações (pergunta + resposta) mais recentes de cada boss
-JANELA_HISTORICO = 4
-# o prompt pede até 6 frases; acima de 8 é o modelo pequeno repetindo a mesma frase em loop
-MAX_FRASES = 8
-FIM_DE_FRASE = re.compile(r"[.!?]\n+|[.!?](?=\s|$)|\n+")
 SLOT_ORDER = ("weapon", "ammo", "head", "cape", "neck", "body", "shield", "legs", "hands", "feet", "ring")
 NIVEIS_PEDIDO = {
     "ataque": "atk", "forca": "str", "defesa": "def", "ranged": "ranged",
     "magia": "magic", "vida": "hp", "prayer": "prayer",
 }
-MULTIPLICADORES = {
-    "k": 10**3, "mil": 10**3,
-    "m": 10**6, "kk": 10**6, "mi": 10**6, "milhao": 10**6, "milhoes": 10**6,
-    "b": 10**9, "bi": 10**9, "kkk": 10**9, "bilhao": 10**9, "bilhoes": 10**9,
+# o modelo de 4B às vezes preenche nível, task ou Rigour que o jogador nem citou ("90 magic" virava
+# ataque 90 também); um campo só vale se a mensagem falar dele
+CAMPO_CITADO = {
+    campo: re.compile(rf"\b({padrao})\b", re.IGNORECASE)
+    for campo, padrao in {
+        "ataque": r"ataque|attack|atk|att",
+        "forca": r"for[çc]a|strength|str",
+        "defesa": r"defesa|defen[cs]e|def",
+        "ranged": r"ranged?|rng",
+        "magia": r"magia|magic|mage|mag",
+        "vida": r"vida|hp|hitpoints?",
+        "prayer": r"prayer|pray|reza|ora[çc][ãa]o",
+        "rigour": r"rigour",
+        "augury": r"augury",
+        "na_task": r"task",
+    }.items()
 }
-
-
-ORCAMENTO_RE = re.compile(
-    r"(\d+(?:[.,]\d+)?)\s*(kkk|kk|k|mi|m|bi|b|mil|milh(?:ão|ao|ões|oes)|bilh(?:ão|ao|ões|oes))\b",
-    re.IGNORECASE,
-)
-
-
-def orcamento_na_mensagem(mensagem: str) -> str | None:
-    """Acha "50m", "120kk", "1.2b"... direto no texto; mais confiável que o modelo pequeno para isso."""
-    match = ORCAMENTO_RE.search(mensagem)
-    return match.group(0) if match else None
-
-
-def parse_gp(texto: str | None) -> int | None:
-    """'50m' -> 50_000_000; '1.2b', '300k', '80kk' (gíria BR para milhões) e '50 milhões' também valem."""
-    if not texto:
-        return None
-    t = texto.casefold().replace("ã", "a").replace("õ", "o").replace(" ", "").replace("gp", "")
-    match = re.fullmatch(r"(\d+(?:[.,]\d+)?)([a-z]*)", t)
-    if not match:
-        return None
-    numero = float(match.group(1).replace(",", "."))
-    sufixo = match.group(2)
-    if sufixo:
-        mult = MULTIPLICADORES.get(sufixo)
-        return round(numero * mult) if mult else None
-    # número solto pequeno quase sempre quer dizer milhões ("tenho 50")
-    return round(numero * 10**6) if numero < 1000 else round(numero)
-
-
-def fmt_gp(valor: int | None) -> str:
-    if valor is None:
-        return "?"
-    for limite, sufixo in ((10**9, "b"), (10**6, "m"), (10**3, "k")):
-        if abs(valor) >= limite:
-            return f"{valor / limite:.1f}{sufixo}".replace(".0" + sufixo, sufixo)
-    return str(valor)
-
+NIVEIS_EM_TUDO_RE = re.compile(r"\b(tudo|todos|todas|all)\b", re.IGNORECASE)
+# o estilo escolhido precisa estar na mensagem: "90 magic" não autoriza o modelo a escolher melee
+ESTILO_CITADO = {
+    "melee": re.compile(r"\bmelee\b", re.IGNORECASE),
+    "ranged": re.compile(r"\branged?\b", re.IGNORECASE),
+    "magic": re.compile(r"\bmag(?:e|ia|ic)\b", re.IGNORECASE),
+}
 
 
 def explicar_erro(erro: Exception, settings: Settings) -> str | None:
@@ -84,16 +67,10 @@ def explicar_erro(erro: Exception, settings: Settings) -> str | None:
     return None
 
 
-def limitar_frases(texto: str, maximo: int = MAX_FRASES) -> str:
-    """Corta o texto depois da enésima frase (ou linha), mantendo a formatação."""
-    fins = [m.end() for m in FIM_DE_FRASE.finditer(texto)]
-    return texto[: fins[maximo - 1]].strip() if len(fins) >= maximo else texto.strip()
-
-
 @dataclass
 class Resposta:
     boss: str | None
-    intencao: str
+    ferramentas: list[str]
     tabela: str | None
     avaliacao: Avaliacao | None
     texto: str
@@ -103,67 +80,208 @@ class Resposta:
 class Estado:
     pedido: Pedido = field(default_factory=Pedido)
     boss: str | None = None
-    # tudo por boss, para uma conversa não vazar para a outra
-    historicos: dict[str, list[tuple[str, str]]] = field(default_factory=dict)
+    # orçamento e avaliação por boss; o histórico de cada boss fica na thread dele no checkpointer
     orcamentos: dict[str, str] = field(default_factory=dict)
     avaliacoes: dict[str, tuple[str, Avaliacao]] = field(default_factory=dict)
+    threads: set[str] = field(default_factory=set)
 
 
 def mesclar(anterior: Pedido, novo: Pedido) -> Pedido:
-    """O que veio na mensagem nova vale; o que ela não disse continua como estava."""
+    """O que veio agora vale; o que não veio continua como estava. Listas de itens acumulam."""
     dados = anterior.model_dump()
     for campo, valor in novo.model_dump().items():
-        if campo == "niveis":
-            dados["niveis"].update({k: v for k, v in valor.items() if v is not None})
-        elif campo in ("itens_que_tenho", "itens_excluidos"):
+        if campo in ("itens_que_tenho", "itens_excluidos"):
             dados[campo] = list(dict.fromkeys(dados[campo] + valor))
-        elif campo == "intencao" or valor is not None:
+        elif valor is not None:
             dados[campo] = valor
     return Pedido(**dados)
 
 
 class Conselheiro:
+    """Uma conversa. O agente, os dados e os guias podem ser compartilhados entre conversas."""
+
     def __init__(
         self,
         settings: Settings | None = None,
         data: GameData | None = None,
         guias: dict[str, Guia] | None = None,
-        interpretar: Runnable | None = None,
+        agente: Runnable | None = None,
         avaliar: Runnable | None = None,
-        responder: Runnable | None = None,
     ) -> None:
         self.settings = settings or Settings()
         self.data = data or GameData.load(self.settings)
         self.guias = guias or carregar_guias()
-        self.interpretar = interpretar or chain_interpretar(self.settings)
+        self.agente = agente or criar_agente(self.settings)
         self.avaliar = avaliar or chain_avaliar(self.settings)
-        self.responder_chain = responder or chain_responder(self.settings)
+        self.sessao = uuid4().hex
         self.estado = Estado()
 
-    # -- passo 1: entender a mensagem ------------------------------------------------
+    # -- conversa -----------------------------------------------------------------------
 
-    def _interpretar(self, mensagem: str) -> Pedido:
-        anterior = self.estado.pedido.model_dump(exclude_defaults=True, exclude={"intencao"})
-        try:
-            return self.interpretar.invoke(
-                {
-                    "bosses": ", ".join(self.guias),
-                    "pedido_anterior": json.dumps(anterior, ensure_ascii=False) or "{}",
-                    "mensagem": mensagem,
-                }
+    def _escolher_boss(self, mensagem: str) -> str | None:
+        citado = identificar_boss(mensagem, self.guias)
+        if citado and citado != self.estado.boss:
+            self.estado.boss = citado
+            # task e estilo valem para um boss; níveis e itens são do jogador
+            self.estado.pedido.na_task = None
+            self.estado.pedido.estilo = None
+            if citado in self.estado.orcamentos:
+                self.estado.pedido.orcamento = self.estado.orcamentos[citado]
+        return self.estado.boss
+
+    def _boss_sem_guia(self, mensagem: str) -> str | None:
+        """Boss citado que não tem guia ("e kree'arra?"); o modelo pequeno às vezes inventava sobre ele."""
+        texto = mensagem.casefold().replace("’", "'")
+        com_guia = {g.boss.casefold() for g in self.guias.values()}
+        com_guia |= {forma.casefold() for g in self.guias.values() for s in g.setups for forma, _ in s.formas}
+        for nome in self.data.monstros_fortes:
+            chave = nome.casefold()
+            if chave in com_guia or not re.search(rf"(?<![\w']){re.escape(chave)}(?![\w'])", texto):
+                continue
+            # "blood moon chestplate", "kraken tentacle": é item, não boss
+            if any(chave in item and item in texto for item in self.data.nomes_de_itens):
+                continue
+            return nome
+        return None
+
+    def eventos(self, mensagem: str) -> Iterator[dict]:
+        """Roda o agente em streaming: ferramentas chamadas, cálculo, pedaços do texto e a resposta final."""
+        if identificar_boss(mensagem, self.guias) is None and (outro := self._boss_sem_guia(mensagem)):
+            texto = (
+                f"Ainda não tenho guia para {outro}. Por enquanto eu ajudo com: {', '.join(self.guias)}. "
+                "Diga qual deles e, se quiser, seu orçamento e o que você já tem."
             )
-        except OutputParserException:
-            # o modelo devolveu algo fora do esquema: segue só com o que já sabíamos
-            return Pedido()
+            yield {"tipo": "fim", "boss": None, "ferramentas": [], "texto": texto, "tabela": None, "avaliacao": None}
+            return
+        boss = self._escolher_boss(mensagem)
+        thread = f"{self.sessao}:{boss or 'geral'}"
+        self.estado.threads.add(thread)
+        para_modelo = mensagem
+        if gp := orcamento_na_mensagem(mensagem):
+            # "120kk" vira "120m gp" para o modelo não ler como 120 mil
+            para_modelo = mensagem.replace(gp, f"{fmt_gp(parse_gp(gp))} gp")
 
-    # -- passo 2: calcular -------------------------------------------------------------
+        final, calculo, ferramentas = "", {"tabela": None, "avaliacao": None}, []
+        for modo, dado in self.agente.stream(
+            {"messages": [HumanMessage(para_modelo)]},
+            {"configurable": {"thread_id": thread}},
+            context=Contexto(self, boss, mensagem),
+            stream_mode=["updates", "messages"],
+        ):
+            if modo == "messages":
+                pedaco, meta = dado
+                # só o texto do agente; a chain de avaliação dentro da ferramenta também gera tokens
+                if meta.get("langgraph_node") == "model" and isinstance(pedaco, AIMessageChunk) and pedaco.text:
+                    yield {"tipo": "token", "texto": pedaco.text}
+                continue
+            for atualizacao in dado.values():
+                for m in (atualizacao or {}).get("messages", []):
+                    if isinstance(m, AIMessage) and m.tool_calls:
+                        for chamada in m.tool_calls:
+                            ferramentas.append(chamada["name"])
+                            yield {"tipo": "ferramenta", "nome": chamada["name"], "args": chamada["args"]}
+                    elif isinstance(m, ToolMessage) and m.artifact:
+                        calculo = m.artifact
+                        yield {"tipo": "calculo", **calculo}
+                    elif isinstance(m, AIMessage):
+                        final = m.text
+        yield {"tipo": "fim", "boss": boss, "ferramentas": ferramentas, "texto": final, **calculo}
+
+    def responder(self, mensagem: str) -> Resposta:
+        fim = list(self.eventos(mensagem))[-1]
+        avaliacao = Avaliacao(**fim["avaliacao"]) if fim["avaliacao"] else None
+        return Resposta(fim["boss"], fim["ferramentas"], fim["tabela"], avaliacao, fim["texto"])
+
+    def encerrar(self) -> None:
+        """Apaga as threads desta conversa do checkpointer."""
+        for thread in self.estado.threads:
+            self.agente.checkpointer.delete_thread(thread)
+        self.estado = Estado()
+
+    # -- o que as ferramentas do agente chamam ---------------------------------------------
+
+    def calcular_para_agente(self, boss: str | None, novo: Pedido, mensagem: str) -> tuple[str, dict | None]:
+        if boss is None:
+            return f"Nenhum boss escolhido. Pergunte ao jogador qual destes: {', '.join(self.guias)}.", None
+        if gp := orcamento_na_mensagem(mensagem):
+            novo.orcamento = gp
+        if novo.estilo and not ESTILO_CITADO[novo.estilo].search(mensagem):
+            novo.estilo = None
+        em_tudo = bool(NIVEIS_EM_TUDO_RE.search(mensagem))
+        for campo, citado in CAMPO_CITADO.items():
+            nivel = campo in NIVEIS_PEDIDO
+            if getattr(novo, campo) is not None and not citado.search(mensagem) and not (nivel and em_tudo):
+                setattr(novo, campo, None)
+        self.estado.pedido = mesclar(self.estado.pedido, novo)
+        if self.estado.pedido.orcamento:
+            self.estado.orcamentos[boss] = self.estado.pedido.orcamento
+
+        guia = self.guias[boss]
+        resultados, perfil, tabela = self.calcular(guia)
+        avaliacao = self._avaliar(guia, resultados, perfil)
+        conteudo = tabela
+        if avaliacao:
+            conteudo += (
+                f"\n\nAvaliação do setup atual: {avaliacao.veredito}. "
+                f"Fortes: {'; '.join(avaliacao.pontos_fortes) or '-'}. "
+                f"Fracos: {'; '.join(avaliacao.pontos_fracos) or '-'}."
+            )
+        artefato = {"tabela": tabela, "avaliacao": avaliacao.model_dump() if avaliacao else None}
+        return conteudo, artefato
+
+    def avaliar_compra(self, boss: str | None, nome: str) -> str:
+        if boss is None:
+            return f"Nenhum boss escolhido. Pergunte ao jogador qual destes: {', '.join(self.guias)}."
+        item = self.data.find_item(nome)
+        if item is None:
+            return f"Não achei o equipamento {nome}."
+        guia = self.guias[boss]
+        perfil, _, _ = self._perfil(guia)
+        if item.name in {i.name for i in perfil.itens}:
+            return f"O jogador já tem {item.name}."
+        preco = self.data.price(item)
+        if preco is not None and arremesso(item):
+            preco *= AMMO_STACK
+        linhas = [
+            f"{item.name}: " + (f"custa {fmt_gp(preco)} no GE" if preco is not None else "não se compra no GE")
+        ]
+        com_item = replace(perfil, itens=[*perfil.itens, item])
+        for setup in guia.setups:
+            formas = [self.data.monster(nome_forma, versao) for nome_forma, versao in setup.formas]
+            antes = Otimizador(self.data, perfil, formas, setup.estilo, 0).melhor_setup(0)
+            depois = Otimizador(self.data, com_item, formas, setup.estilo, 0).melhor_setup(0)
+            ganho = depois.dps - antes.dps
+            if ganho <= 0.005:
+                linhas.append(f"- setup {setup.estilo}: não muda nada com o que o jogador tem hoje")
+                continue
+            por_milhao = f", {ganho / preco * 10**6:.2f} DPS por milhão" if preco else ""
+            linhas.append(
+                f"- setup {setup.estilo}: {antes.dps:.2f} -> {depois.dps:.2f} DPS ({ganho:+.2f}{por_milhao}), "
+                "comparando só com o que o jogador já tem"
+            )
+        return "\n".join(linhas)
+
+    def preco(self, nome: str) -> str:
+        item = self.data.find_item(nome)
+        if item is not None:
+            preco = self.data.price(item)
+            if preco is None:
+                return f"{item.name} não é vendido no GE."
+            extra = f" (uma pilha de {AMMO_STACK}: {fmt_gp(preco * AMMO_STACK)})" if arremesso(item) else ""
+            return f"{item.name}: {fmt_gp(preco)} no GE{extra}."
+        nome_ge = self.data.nome_no_ge(nome)
+        if nome_ge is None:
+            return f"Não achei {nome} no GE."
+        return f"{nome_ge}: {fmt_gp(self.data.ge_price(nome_ge))} no GE."
+
+    # -- cálculo ----------------------------------------------------------------------------
 
     def _perfil(self, guia: Guia) -> tuple[Perfil, list[str], list[str]]:
         pedido = self.estado.pedido
         niveis = dict(DEFAULT_LEVELS)
         informados = []
         for campo, chave in NIVEIS_PEDIDO.items():
-            valor = getattr(pedido.niveis, campo)
+            valor = getattr(pedido, campo)
             if valor is not None:
                 niveis[chave] = max(1, min(99, valor))
                 informados.append(chave)
@@ -301,13 +419,25 @@ class Conselheiro:
         hp = hp_boss.get(setup.detalhes[0]["forma"])
         return f" (~{hp / setup.dps:.0f} s de dano por kill)" if hp else ""
 
-    # -- passo 3: avaliar e responder ----------------------------------------------------
+    # -- avaliação (chain prompt | llm | parser, chamada de dentro da ferramenta) ---------
+
+    @staticmethod
+    def _avaliados(guia: Guia, resultados: list[Resultado]) -> list[Resultado]:
+        if guia.multi_setup:
+            return resultados
+        # basta um estilo: avalia só o melhor que o jogador consegue usar hoje
+        usaveis = [r for r in resultados if r.atual.dps > 0]
+        return usaveis[:1] or resultados
+
+    def veredito_pela_regra(self, guia: Guia, resultados: list[Resultado]) -> str:
+        avaliados = self._avaliados(guia, resultados)
+        if any(r.atual.dps == 0 for r in avaliados):
+            return "arriscado"
+        proporcoes = [r.atual.dps / r.recomendado.dps for r in avaliados if r.recomendado.dps]
+        return "adequado" if proporcoes and min(proporcoes) >= 0.7 else "fraco"
 
     def resumo_avaliacao(self, guia: Guia, resultados: list[Resultado]) -> str:
-        if not guia.multi_setup:
-            # basta um estilo: avalia só os que o jogador consegue usar hoje
-            usaveis = [r for r in resultados if r.atual.dps > 0]
-            resultados = usaveis[:1] if usaveis else resultados
+        resultados = self._avaliados(guia, resultados)
         usados = list(dict.fromkeys(i.name for r in resultados for i in r.atual.equipment.values()))
         linhas = [f"Boss: {guia.boss}", "O jogador tem: " + (", ".join(usados) or "nada útil para este boss")]
         if guia.multi_setup:
@@ -335,63 +465,8 @@ class Conselheiro:
             avaliacao = self.avaliar.invoke({"guia": guia.texto, "resumo": resumo})
         except OutputParserException:
             return None
+        # a regra do veredito é objetiva e o modelo de 4B às vezes a ignora (DPS 0 no setup de magia virou
+        # "fraco"); o modelo escreve os pontos fortes e fracos, o código confere o veredito
+        avaliacao = avaliacao.model_copy(update={"veredito": self.veredito_pela_regra(guia, resultados)})
         self.estado.avaliacoes[guia.boss] = (resumo, avaliacao)
         return avaliacao
-
-    def _sem_guia(self, novo: Pedido) -> Resposta:
-        texto = (
-            f"Ainda não tenho guia para {novo.boss or 'esse boss'}. Por enquanto eu ajudo com: "
-            f"{', '.join(self.guias)}. Diga qual deles e, se quiser, seu orçamento e o que você já tem."
-        )
-        return Resposta(None, novo.intencao, None, None, texto)
-
-    def responder(self, mensagem: str) -> Resposta:
-        novo = self._interpretar(mensagem)
-        mensagem_para_modelo = mensagem
-        if gp := orcamento_na_mensagem(mensagem):
-            novo.orcamento = gp
-            if novo.intencao == "duvida":
-                novo.intencao = "setup"
-            # "120kk" vira "120m gp" para o modelo não ler como 120 mil
-            mensagem_para_modelo = mensagem.replace(gp, f"{fmt_gp(parse_gp(gp))} gp")
-        citado = identificar_boss(mensagem, self.guias) or identificar_boss(novo.boss or "", self.guias)
-        if citado is None and novo.boss:
-            # citou um boss que não tem guia: não responde com o guia do boss anterior
-            return self._sem_guia(novo)
-        boss = citado or self.estado.boss
-        self.estado.pedido = mesclar(self.estado.pedido, novo)
-        if boss != self.estado.boss:
-            # task, estilo e orçamento valem para um boss; níveis e itens são do jogador
-            self.estado.pedido.na_task = novo.na_task
-            self.estado.pedido.estilo = novo.estilo
-            if novo.orcamento is None and boss in self.estado.orcamentos:
-                self.estado.pedido.orcamento = self.estado.orcamentos[boss]
-        if boss is None:
-            return self._sem_guia(novo)
-        self.estado.boss = boss
-        if self.estado.pedido.orcamento:
-            self.estado.orcamentos[boss] = self.estado.pedido.orcamento
-        guia = self.guias[boss]
-
-        tabela, avaliacao = None, None
-        if novo.intencao == "duvida":
-            calculos = "(a pergunta é sobre mecânica: responda só com o guia)"
-        else:
-            resultados, perfil, tabela = self.calcular(guia)
-            calculos = tabela
-            avaliacao = self._avaliar(guia, resultados, perfil)
-
-        historico = self.estado.historicos.setdefault(boss, [])
-        texto = self.responder_chain.invoke(
-            {
-                "guia": guia.texto,
-                "calculos": calculos,
-                "avaliacao": avaliacao.model_dump_json() if avaliacao else "(sem setup atual para avaliar)",
-                "historico": historico,
-                "mensagem": mensagem_para_modelo,
-            }
-        )
-        texto = limitar_frases(texto.replace("**", ""))
-        historico.extend([("human", mensagem), ("ai", texto)])
-        del historico[: max(0, len(historico) - 2 * JANELA_HISTORICO)]
-        return Resposta(boss, novo.intencao, tabela, avaliacao, texto)

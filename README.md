@@ -1,11 +1,12 @@
 # Conselheiro de bosses de OSRS (LangChain + LLM local)
 
-Agente (no navegador ou no terminal) que monta o setup com mais dano para um boss de Old School RuneScape dentro do seu
-orçamento, diz em que ordem comprar os upgrades, avalia o que você já tem e responde dúvidas de mecânica.
-Roda com uma LLM local pelo Ollama.
+Agente LangChain (no navegador ou no terminal) que monta o setup com mais dano para um boss de Old School
+RuneScape dentro do seu orçamento, diz em que ordem comprar os upgrades, avalia o que você já tem, diz se vale a
+pena comprar um item, consulta preços do GE e responde dúvidas de mecânica. Roda com uma LLM local pelo Ollama.
 
 ```text
 Você: quero fazer cerberus com 80m, sou 90 de ataque, forca e defesa, 75 prayer. tenho slayer helmet, dragon defender e arclight
+  [ferramenta] calcular_setup(orcamento=80m, ataque=90, forca=90, defesa=90, prayer=75, itens_que_tenho=[...])
 
 == Cerberus · orçamento 80m gp ==
 [melee] Cerberus
@@ -15,7 +16,6 @@ Você: quero fazer cerberus com 80m, sou 90 de ataque, forca e defesa, 75 prayer
     weapon  Ghrazi rapier
     head    Slayer helmet (já tem)
     ...
-  Atual (só o que você tem): 5.15 DPS (~117 s de dano por kill)
   Ordem de compra:
     1. legs    Mixed hide legs  +0.05 DPS  23.2k
     2. hands   Regen bracelet  +0.93 DPS  2m
@@ -24,7 +24,11 @@ Você: quero fazer cerberus com 80m, sou 90 de ataque, forca e defesa, 75 prayer
 Avaliação do seu setup atual: FRACO
   - DPS atual é 58% do recomendado
 
-Conselheiro: Comece comprando as Mixed hide legs e depois o Regen bracelet. ...
+Conselheiro: Comece pelas Mixed hide legs e pelo Regen bracelet. ...
+
+Você: vale a pena comprar a ghrazi rapier?
+  [ferramenta] avaliar_compra(item=Ghrazi rapier)
+Conselheiro: Com o que você tem hoje, a rapier leva seu DPS de 5.15 para ...
 ```
 
 Bosses com guia: **Vorkath, Zulrah, General Graardor, Cerberus e Giant Mole**.
@@ -34,30 +38,54 @@ Bosses com guia: **Vorkath, Zulrah, General Graardor, Cerberus e Giant Mole**.
 | Aula | Onde está |
 | --- | --- |
 | LLM local com Ollama (`ChatOllama`) | `conselheiro/chains.py` → `criar_llm` |
-| `ChatPromptTemplate` com parâmetros | as três chains em `conselheiro/chains.py` |
-| `("placeholder", "{historico}")` com janela de 4 interações | `chain_responder` e `JANELA_HISTORICO` |
-| Prompt estruturado com Pydantic (`BaseModel`, `Field`) | `Pedido` e `Avaliacao` + `PydanticOutputParser` |
-| `StrOutputParser` | `chain_responder` |
-| Chain `prompt \| llm \| parser` | `chain_interpretar`, `chain_avaliar`, `chain_responder` |
-| Exercício do agente avaliador | `chain_avaliar` classifica o setup atual em adequado/fraco/arriscado; "indo além": `chain_responder` responde com base na avaliação |
+| Prompt estruturado com Pydantic (`BaseModel`, `Field`) | `Pedido` (argumentos da ferramenta) e `Avaliacao` |
+| `ChatPromptTemplate` + `PydanticOutputParser`, chain `prompt \| llm \| parser` | `chain_avaliar`, chamada de dentro da ferramenta `calcular_setup` |
+| Histórico da conversa | checkpointer do LangGraph, uma thread por conversa e por boss |
+| Exercício do agente avaliador | `chain_avaliar` classifica o setup atual em adequado/fraco/arriscado; "indo além": o agente responde a partir da avaliação e do cálculo |
+
+## Por que LangChain aqui
+
+O modelo decide o que fazer com cada mensagem: calcular um setup, avaliar uma compra, ver um preço ou responder
+pelo guia. Isso é um agente com ferramentas (`create_agent`), e o LangChain entrega as peças que dariam muito
+trabalho escrever na mão:
+
+| Peça | Para quê, neste projeto |
+| --- | --- |
+| `@tool` com `args_schema=Pedido` | o esquema Pydantic vira a definição da ferramenta que o modelo preenche (orçamento, níveis, itens) |
+| `ToolRuntime` | as ferramentas recebem a sessão, o boss e a mensagem original sem o modelo ver esses parâmetros |
+| `response_format="content_and_artifact"` | o modelo recebe o texto do cálculo e a interface recebe a tabela e a avaliação estruturadas |
+| `InMemorySaver` (checkpointer) | memória de cada conversa; uma thread por boss, então o histórico do Zulrah não vaza para o Vorkath |
+| `@dynamic_prompt` | o guia do boss da conversa entra no system prompt, e só ele |
+| `ContextEditingMiddleware` | cada tabela tem ~900 tokens; as antigas saem do contexto e fica só a última |
+| `trim_messages` num `@wrap_model_call` | conversa longa não estoura o `num_ctx` do Ollama |
+| `@wrap_model_call` (`exigir_ferramenta`) | o modelo de 4B dizia "calculei o setup" sem chamar a ferramenta; se ele responde com números sem ter usado ferramenta, o middleware pede de novo |
+| `@after_model` (`limpar_texto`) | tira markdown e corta resposta em loop direto no estado da conversa |
+| `ModelCallLimitMiddleware` | o modelo pequeno não fica chamando ferramenta para sempre |
+| `stream(stream_mode=["updates", "messages"])` | a interface mostra cada ferramenta chamada, o cálculo e o texto chegando em tempo real |
 
 ## Como funciona
 
 ```text
-mensagem ──► chain_interpretar ──► Pedido (boss, orçamento, níveis, itens...)
-                                       │
-                guias/<boss>.md ◄──────┤  só o guia do boss citado entra no prompt
-                                       ▼
-                     otimizador (Python, sem LLM): DPS com as fórmulas da
-                     calculadora da Wiki + preços do GE ──► tabela
-                                       │
-                 chain_avaliar ◄───────┤  setup atual vs. recomendado
-                                       ▼
-                 chain_responder (guia + tabela + avaliação + histórico do boss) ──► resposta
+mensagem ──► boss citado? (Python) ──► thread "<sessão>:<boss>" no checkpointer
+                                            │
+                    guias/<boss>.md ──► system prompt (@dynamic_prompt)
+                                            ▼
+                ┌──────────── agente (create_agent + middlewares) ────────────┐
+                │  o modelo escolhe:                                          │
+                │   calcular_setup ─► otimizador + preços ─► tabela           │
+                │                     └► chain_avaliar ─► adequado/fraco/...  │
+                │   avaliar_compra ─► DPS com e sem o item                    │
+                │   preco_item     ─► preço no GE                             │
+                │   (nenhuma)      ─► responde pelo guia                      │
+                └──────────────────────────┬──────────────────────────────────┘
+                                           ▼
+                     eventos em streaming: ferramenta, cálculo, texto, fim
 ```
 
 **Os números nunca vêm do modelo.** Uma LLM local pequena não conhece a meta do jogo nem tem acesso a dados
-externos. Por isso, o DPS é calculado em Python e o modelo só interpreta o pedido e explica o resultado.
+externos. O DPS e os preços saem das ferramentas; o modelo escolhe a ferramenta, preenche os argumentos e explica
+o resultado. Onde o modelo de 4B erra com frequência, o código confere: o orçamento é lido por regex ("120kk" é
+120 milhões), e estilo, task e Rigour só valem se a mensagem citar.
 
 - **Cálculo de DPS** (`conselheiro/calc.py`): porte para Python de parte da
   [calculadora de DPS da OSRS Wiki](https://github.com/weirdgloop/osrs-dps-calc). `tests/test_calc.py`
@@ -66,9 +94,9 @@ externos. Por isso, o DPS é calculado em Python e o modelo só interpreta o ped
 - **Otimizador** (`conselheiro/otimizador.py`): para cada arma possível, compra armadura pelo maior ganho de
   DPS por gp até o dinheiro acabar. Depois ordena as trocas a partir do que você já tem.
 - **Guias** (`guias/*.md`): um arquivo por boss. O cabeçalho YAML diz os estilos, as formas do boss, se exige
-  task, os itens que não se compram no GE e o inventário. O texto vai no prompt.
-- **Contexto separado por boss**: a chain de interpretação não vê nenhum guia, e cada boss tem o próprio
-  histórico e orçamento. Perguntar do Zulrah no meio de uma conversa sobre Vorkath não mistura nada.
+  task, os itens que não se compram no GE e o inventário. O texto vai no system prompt.
+- **Contexto separado por boss**: cada boss tem a própria thread, o próprio guia no prompt e o próprio
+  orçamento. Perguntar do Zulrah no meio de uma conversa sobre Vorkath não mistura nada.
 
 ## Como rodar
 
@@ -103,8 +131,8 @@ pip install -r requirements-dev.txt
 pytest
 ```
 
-Os testes não precisam do Ollama: as chains recebem modelos falsos (`FakeListChatModel`) e o resto roda de
-verdade. Para regenerar o gabarito com a calculadora original (precisa de Node 20+):
+Os testes não precisam do Ollama: o agente recebe um modelo falso que segue um roteiro de chamadas de
+ferramenta (`GenericFakeChatModel`) e o resto roda de verdade, inclusive os middlewares e o checkpointer. Para regenerar o gabarito com a calculadora original (precisa de Node 20+):
 
 ```bash
 python -m tests.gabarito.gerar_casos

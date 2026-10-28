@@ -135,7 +135,18 @@
   .avaliacao li.mais::marker { content: "+  "; color: var(--ok); }
   .avaliacao li.menos::marker { content: "−  "; color: var(--bad); }
   .erro { border-color: var(--bad); color: var(--bad); }
-  .pensando { color: var(--muted); font-style: italic; }
+  .passos { display: flex; flex-direction: column; gap: 4px; }
+  .passo {
+    font: 12.5px/1.4 var(--mono);
+    color: var(--muted);
+    border-left: 3px solid var(--accent);
+    padding: 2px 8px;
+    overflow-wrap: anywhere;
+  }
+  .passo b { color: var(--text); font-weight: 600; }
+  .passos:empty, .calculo:empty, .texto:empty { display: none; }
+  .calculo { display: flex; flex-direction: column; gap: 10px; }
+  .pensando { color: var(--muted); font-style: italic; font-size: 14px; }
   footer { border-top: 1px solid var(--border); background: var(--surface); }
   form {
     max-width: 1000px;
@@ -188,6 +199,8 @@
     "cerberus com 80m, 90 atk/str/def, tenho arclight e slayer helm",
     "zulrah com 120m, 90 magic e range, augury e rigour",
     "como passo do especial de ácido do vorkath?",
+    "vale a pena comprar a masori mask pro vorkath?",
+    "quanto custa uma twisted bow?",
   ];
   const conversa = document.getElementById("conversa");
   const rolagem = document.getElementById("rolagem");
@@ -211,7 +224,7 @@
   function mostrarVazio() {
     conversa.replaceChildren();
     const vazio = el("div", "vazio");
-    vazio.append(el("p", "", "Diga o boss, o orçamento, seus níveis e o que já tem. Ou pergunte uma mecânica."));
+    vazio.append(el("p", "", "Diga o boss, o orçamento, seus níveis e o que já tem. Pergunte uma mecânica, um preço ou se vale a pena comprar um item."));
     const lista = el("div", "exemplos");
     for (const exemplo of EXEMPLOS) {
       const b = el("button", "", exemplo);
@@ -235,18 +248,24 @@
     return pre;
   }
 
-  function mensagemAgente(r) {
-    const card = el("div", "msg agente");
-    if (r.tabela) {
+  const NOMES = {
+    calcular_setup: "calculando o setup",
+    avaliar_compra: "avaliando a compra",
+    preco_item: "consultando o preço no GE",
+  };
+
+  function mostrarCalculo(destino, ev) {
+    destino.replaceChildren();
+    if (ev.tabela) {
       for (const d of conversa.querySelectorAll("details[open]")) d.open = false;
       const det = el("details");
       det.open = true;
-      det.append(el("summary", "", `Cálculo${r.boss ? " · " + r.boss : ""} (DPS e preços do GE)`));
-      det.append(tabelaFormatada(r.tabela));
-      card.append(det);
+      det.append(el("summary", "", "Cálculo (DPS e preços do GE)"));
+      det.append(tabelaFormatada(ev.tabela));
+      destino.append(det);
     }
-    if (r.avaliacao) {
-      const a = r.avaliacao;
+    if (ev.avaliacao) {
+      const a = ev.avaliacao;
       const box = el("div", "avaliacao");
       box.append(el("span", "veredito " + a.veredito, a.veredito.toUpperCase()));
       box.append(document.createTextNode("Avaliação do seu setup atual"));
@@ -254,12 +273,20 @@
       for (const p of a.pontos_fortes) ul.append(el("li", "mais", p));
       for (const p of a.pontos_fracos) ul.append(el("li", "menos", p));
       if (ul.children.length) box.append(ul);
-      card.append(box);
+      destino.append(box);
     }
-    const texto = el("div", "texto");
-    for (const linha of r.texto.split("\n").filter(l => l.trim())) texto.append(el("p", "", linha));
-    card.append(texto);
-    return card;
+  }
+
+  function mostrarTexto(destino, texto) {
+    destino.replaceChildren();
+    for (const linha of texto.split("\n").filter(l => l.trim())) destino.append(el("p", "", linha));
+  }
+
+  function argumentos(args) {
+    return Object.entries(args)
+      .filter(([, v]) => v !== null && !(Array.isArray(v) && !v.length))
+      .map(([k, v]) => `${k}=${Array.isArray(v) ? v.join(", ") : v}`)
+      .join(" · ");
   }
 
   async function mandar() {
@@ -271,13 +298,43 @@
     ajustarAltura();
     enviar.disabled = true;
 
-    const espera = el("div", "msg agente pensando", "Pensando…");
-    conversa.append(espera);
+    const card = el("div", "msg agente");
+    const passos = el("div", "passos");
+    const calculo = el("div", "calculo");
+    const texto = el("div", "texto");
+    const status = el("div", "pensando", "Pensando…");
+    card.append(passos, calculo, texto, status);
+    conversa.append(card);
     rolarParaFim();
     const inicio = Date.now();
     const relogio = setInterval(() => {
-      espera.textContent = `Pensando… ${Math.round((Date.now() - inicio) / 1000)} s`;
+      status.textContent = `Pensando… ${Math.round((Date.now() - inicio) / 1000)} s`;
     }, 1000);
+
+    let parcial = "";
+    function tratar(ev) {
+      if (ev.tipo === "ferramenta") {
+        // o texto que veio antes da chamada de ferramenta era o modelo se adiantando: descarta
+        parcial = "";
+        texto.replaceChildren();
+        const passo = el("div", "passo");
+        passo.append(el("b", "", ev.nome), document.createTextNode(` ${NOMES[ev.nome] || ""}`));
+        const args = argumentos(ev.args || {});
+        if (args) passo.append(document.createTextNode(` (${args})`));
+        passos.append(passo);
+      } else if (ev.tipo === "calculo") {
+        mostrarCalculo(calculo, ev);
+      } else if (ev.tipo === "token") {
+        parcial += ev.texto;
+        mostrarTexto(texto, parcial);
+      } else if (ev.tipo === "fim") {
+        mostrarTexto(texto, ev.texto);
+      } else if (ev.tipo === "erro") {
+        card.classList.add("erro");
+        mostrarTexto(texto, ev.texto);
+      }
+      rolarParaFim();
+    }
 
     try {
       const resp = await fetch("/api/mensagem", {
@@ -285,14 +342,27 @@
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ sessao, mensagem }),
       });
-      const corpo = await resp.json().catch(() => ({}));
-      if (!resp.ok) throw new Error(corpo.detail && typeof corpo.detail === "string" ? corpo.detail : `Erro ${resp.status} no servidor.`);
-      espera.replaceWith(mensagemAgente(corpo));
+      if (!resp.ok) throw new Error(`Erro ${resp.status} no servidor.`);
+      const leitor = resp.body.getReader();
+      const decodificador = new TextDecoder();
+      let buffer = "";
+      for (;;) {
+        const { value, done } = await leitor.read();
+        if (done) break;
+        buffer += decodificador.decode(value, { stream: true });
+        let quebra;
+        while ((quebra = buffer.indexOf("\n")) >= 0) {
+          const linha = buffer.slice(0, quebra).trim();
+          buffer = buffer.slice(quebra + 1);
+          if (linha) tratar(JSON.parse(linha));
+        }
+      }
     } catch (erro) {
-      const msg = erro instanceof TypeError ? "Sem resposta do servidor. Ele ainda está rodando?" : erro.message;
-      espera.replaceWith(el("div", "msg agente erro", msg));
+      card.classList.add("erro");
+      mostrarTexto(texto, erro instanceof TypeError ? "Sem resposta do servidor. Ele ainda está rodando?" : erro.message);
     } finally {
       clearInterval(relogio);
+      status.remove();
       enviar.disabled = false;
       entrada.focus();
       rolarParaFim();

@@ -18,6 +18,23 @@ except httpx.HTTPError as erro:
 print(f"Conselheiro de bosses ({conselheiro.settings.ollama_model}). Bosses: {', '.join(conselheiro.guias)}.")
 print('Digite "sair" para encerrar.\n')
 
+
+def mostrar(evento: dict) -> None:
+    if evento["tipo"] == "ferramenta":
+        args = ", ".join(f"{k}={v}" for k, v in evento["args"].items())
+        print(f"  [ferramenta] {evento['nome']}({args})")
+    elif evento["tipo"] == "calculo":
+        print("\n" + evento["tabela"])
+        if a := evento["avaliacao"]:
+            print(f"\nAvaliação do seu setup atual: {a['veredito'].upper()}")
+            for ponto in a["pontos_fortes"]:
+                print(f"  + {ponto}")
+            for ponto in a["pontos_fracos"]:
+                print(f"  - {ponto}")
+    elif evento["tipo"] == "fim":
+        print("\nConselheiro: " + evento["texto"].strip().replace("\n", "\n     ") + "\n")
+
+
 while True:
     try:
         mensagem = input("Você: ").strip()
@@ -30,23 +47,11 @@ while True:
         continue
 
     try:
-        resposta = conselheiro.responder(mensagem)
+        for evento in conselheiro.eventos(mensagem):
+            mostrar(evento)
     except KeyboardInterrupt:
         print("\n(cancelado)\n")
-        continue
     except Exception as erro:
         if (explicacao := explicar_erro(erro, conselheiro.settings)) is None:
             raise
         print(f"\n{explicacao}\n")
-        continue
-
-    if resposta.tabela:
-        print("\n" + resposta.tabela)
-    if resposta.avaliacao:
-        a = resposta.avaliacao
-        print(f"\nAvaliação do seu setup atual: {a.veredito.upper()}")
-        for ponto in a.pontos_fortes:
-            print(f"  + {ponto}")
-        for ponto in a.pontos_fracos:
-            print(f"  - {ponto}")
-    print("\nConselheiro: " + resposta.texto.strip().replace("\n", "\n     ") + "\n")

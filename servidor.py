@@ -9,8 +9,9 @@ import sys
 import httpx
 import uvicorn
 
+from conselheiro.agente import criar_agente
 from conselheiro.api import criar_app
-from conselheiro.chains import chain_avaliar, chain_interpretar, chain_responder
+from conselheiro.chains import chain_avaliar
 from conselheiro.config import Settings
 from conselheiro.conselheiro import Conselheiro
 from conselheiro.dados import GameData
@@ -22,10 +23,11 @@ try:
 except httpx.HTTPError as erro:
     sys.exit(f"Não consegui baixar os dados da OSRS Wiki ({erro}). Confira a conexão e tente de novo.")
 guias = carregar_guias()
-# as chains não guardam estado: o histórico fica no Conselheiro de cada sessão
-chains = chain_interpretar(settings), chain_avaliar(settings), chain_responder(settings)
+# um agente para todas as abas: cada conversa e cada boss tem a própria thread no checkpointer dele
+agente = criar_agente(settings)
+avaliar = chain_avaliar(settings)
 
-app = criar_app(lambda: Conselheiro(settings, data, guias, *chains))
+app = criar_app(lambda: Conselheiro(settings, data, guias, agente, avaliar))
 
 if __name__ == "__main__":
     host, port = os.getenv("HOST", "127.0.0.1"), int(os.getenv("PORT", "8080"))

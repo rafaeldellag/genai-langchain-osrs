@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import difflib
 import json
+import re
 import time
 from dataclasses import dataclass, replace
 from functools import cached_property
@@ -21,6 +22,8 @@ MAPPING_URL = "https://prices.runescape.wiki/api/v1/osrs/mapping"
 TABLES_PATH = Path(__file__).resolve().parent / "dados" / "tabelas.json"
 
 GAME_DATA_TTL = 7 * 24 * 3600
+# vida mínima para um monstro contar como "boss" ao reconhecer um boss que não tem guia
+MIN_HP_BOSS = 200
 PRICES_TTL = 10 * 60
 
 # Versões que não servem para lutar ou que são cópias de minigame.
@@ -141,6 +144,31 @@ class GameData:
         """Preço de qualquer item negociável pelo nome exato (poções, comida, runas...)."""
         item_id = self.ge_ids.get(name)
         return self.prices.get(item_id) if item_id is not None else None
+
+    @cached_property
+    def monstros_fortes(self) -> list[str]:
+        """Monstros com muita vida, sem o sufixo de minigame, do nome mais longo para o mais curto."""
+        hp: dict[str, int] = {}
+        for monster in self.monsters:
+            name = re.sub(r"\s*\(.*\)$", "", monster.name)
+            hp[name] = max(hp.get(name, 0), monster.skills.get("hp", 0))
+        return sorted((n for n, h in hp.items() if h >= MIN_HP_BOSS), key=len, reverse=True)
+
+    @cached_property
+    def nomes_de_itens(self) -> set[str]:
+        return {name.casefold() for name in self.ge_ids} | {item.name.casefold() for item in self.items}
+
+    @cached_property
+    def _ge_por_caixa(self) -> dict[str, str]:
+        return {name.casefold(): name for name in self.ge_ids}
+
+    def nome_no_ge(self, name: str) -> str | None:
+        """Nome exato no GE de qualquer item (poções, comida, runas...), tolerando caixa e erros pequenos."""
+        key = name.strip().casefold()
+        if key in self._ge_por_caixa:
+            return self._ge_por_caixa[key]
+        close = difflib.get_close_matches(key, list(self._ge_por_caixa), n=1, cutoff=0.85)
+        return self._ge_por_caixa[close[0]] if close else None
 
     @cached_property
     def _by_id(self) -> dict[int, Item]:

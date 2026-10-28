@@ -1,17 +1,46 @@
-"""Testes sem Ollama: as chains recebem modelos falsos e o resto roda de verdade."""
+"""Testes sem Ollama: o agente e a chain recebem modelos falsos e o resto roda de verdade."""
 
 import json
 
 import pytest
-from langchain_core.language_models.fake_chat_models import FakeListChatModel
+from langchain_core.language_models.fake_chat_models import FakeListChatModel, GenericFakeChatModel
+from langchain_core.messages import AIMessage, HumanMessage, SystemMessage
 from langchain_core.runnables import RunnableLambda
+from pydantic import Field
 
-from conselheiro.chains import Avaliacao, Pedido, chain_avaliar, chain_interpretar, chain_responder
+from conselheiro.agente import criar_agente
+from conselheiro.chains import Avaliacao, Pedido, chain_avaliar
 from conselheiro.config import Settings
-from conselheiro.conselheiro import Conselheiro, limitar_frases, mesclar, orcamento_na_mensagem, parse_gp
+from conselheiro.conselheiro import Conselheiro, mesclar
 from conselheiro.dados import GameData
 from conselheiro.guias import carregar_guias, identificar_boss
 from conselheiro.otimizador import AMMO_STACK, Otimizador, Perfil
+from conselheiro.texto import MAX_FRASES, limitar_frases, limpar_resposta, orcamento_na_mensagem, parse_gp
+
+
+class ModeloFalso(GenericFakeChatModel):
+    """Segue um roteiro de respostas (texto ou chamada de ferramenta) e guarda o que recebeu em cada chamada."""
+
+    recebidas: list = Field(default_factory=list)
+    # sem streaming o fake devolve as tool_calls inteiras
+    disable_streaming: bool = True
+
+    def bind_tools(self, tools, **kwargs):
+        return self
+
+    def _generate(self, messages, stop=None, run_manager=None, **kwargs):
+        self.recebidas.append(list(messages))
+        return super()._generate(messages, stop, run_manager, **kwargs)
+
+
+def chamada(nome: str, **args) -> AIMessage:
+    return AIMessage("", tool_calls=[{"name": nome, "args": args, "id": f"{nome}-{len(args)}"}])
+
+
+def conselheiro_falso(data, guias, *roteiro) -> tuple[Conselheiro, ModeloFalso]:
+    modelo = ModeloFalso(messages=iter(roteiro))
+    avaliar = RunnableLambda(lambda _: Avaliacao(veredito="fraco", pontos_fortes=["a"], pontos_fracos=["b"]))
+    return Conselheiro(Settings(), data, guias, criar_agente(Settings(), modelo), avaliar), modelo
 
 
 @pytest.fixture(scope="module")
@@ -51,20 +80,18 @@ def test_orcamento_na_mensagem(mensagem, esperado):
 
 
 def test_mesclar_mantem_o_que_a_mensagem_nao_disse():
-    anterior = Pedido(orcamento="50m", itens_que_tenho=["Toxic blowpipe"], niveis={"ranged": 90})
-    novo = Pedido(itens_que_tenho=["Salve amulet(ei)"], niveis={"prayer": 77})
+    anterior = Pedido(orcamento="50m", itens_que_tenho=["Toxic blowpipe"], ranged=90)
+    novo = Pedido(itens_que_tenho=["Salve amulet(ei)"], prayer=77)
     junto = mesclar(anterior, novo)
     assert junto.orcamento == "50m"
     assert junto.itens_que_tenho == ["Toxic blowpipe", "Salve amulet(ei)"]
-    assert (junto.niveis.ranged, junto.niveis.prayer) == (90, 77)
+    assert (junto.ranged, junto.prayer) == (90, 77)
 
 
-def test_pedido_aceita_null_do_modelo_pequeno():
-    pedido = Pedido.model_validate(
-        {"orcamento": "null", "niveis": None, "itens_que_tenho": None, "intencao": None, "boss": "None"}
-    )
-    assert pedido.orcamento is None and pedido.boss is None
-    assert pedido.itens_que_tenho == [] and pedido.intencao == "setup"
+def test_pedido_aceita_null_e_texto_do_modelo_pequeno():
+    pedido = Pedido.model_validate({"orcamento": "null", "itens_que_tenho": None, "ranged": "90", "rigour": "True"})
+    assert pedido.orcamento is None and pedido.itens_que_tenho == []
+    assert pedido.ranged == 90 and pedido.rigour is True
 
 
 @pytest.mark.parametrize(
@@ -123,8 +150,10 @@ def test_sem_arma_no_estilo_a_arma_vem_primeiro(data):
 def test_limitar_frases_corta_loop_e_mantem_linhas():
     assert limitar_frases("Uma. Duas.\nTrês com 9.38 DPS.", maximo=2) == "Uma. Duas."
     loop = "Compre a arma.\n" + "O Shark é mais barato.\n" * 30
-    assert limitar_frases(loop).count("\n") == 7
+    assert limitar_frases(loop).count("\n") == MAX_FRASES - 1
     assert limitar_frases("Curta e sem ponto") == "Curta e sem ponto"
+    # o "1." de uma lista não conta como frase
+    assert limitar_frases("Ordem:\n1. Fang (13m)\n2. Amulet", maximo=3) == "Ordem:\n1. Fang (13m)\n2. Amulet"
 
 
 def test_zulrah_so_aceita_alabarda_no_melee(data):
@@ -133,50 +162,110 @@ def test_zulrah_so_aceita_alabarda_no_melee(data):
     assert resultado.recomendado.equipment["weapon"].category == "Polearm"
 
 
-def test_chain_interpretar_com_modelo_falso():
-    resposta = json.dumps({"boss": "vork", "orcamento": "50m", "itens_que_tenho": ["Toxic blowpipe"]})
-    chain = chain_interpretar(Settings(), llm=FakeListChatModel(responses=[resposta]))
-    pedido = chain.invoke({"bosses": "Vorkath", "pedido_anterior": "{}", "mensagem": "vork com 50m"})
-    assert pedido.orcamento == "50m" and pedido.itens_que_tenho == ["Toxic blowpipe"]
-
-
-def test_chain_avaliar_e_responder_com_modelo_falso():
+def test_chain_avaliar_com_modelo_falso():
     avaliacao = json.dumps({"veredito": "fraco", "pontos_fortes": ["a"], "pontos_fracos": ["b"]})
     chain = chain_avaliar(Settings(), llm=FakeListChatModel(responses=[avaliacao]))
     assert chain.invoke({"guia": "g", "resumo": "r"}).veredito == "fraco"
 
-    chain = chain_responder(Settings(), llm=FakeListChatModel(responses=["ok"]))
-    texto = chain.invoke(
-        {"guia": "g", "calculos": "c", "avaliacao": "a", "historico": [("human", "oi"), ("ai", "olá")], "mensagem": "m"}
+
+def test_agente_chama_a_ferramenta_e_devolve_o_calculo(data, guias):
+    conselheiro, modelo = conselheiro_falso(
+        data, guias, chamada("calcular_setup", orcamento="50m", itens_que_tenho=["Toxic blowpipe"]), "**Compre** a dhcb."
     )
-    assert texto == "ok"
+    resposta = conselheiro.responder("vorkath com 50m, tenho bp")
+    assert resposta.boss == "Vorkath" and resposta.ferramentas == ["calcular_setup"]
+    assert "Vorkath" in resposta.tabela and resposta.avaliacao.veredito == "fraco"
+    assert resposta.texto == "Compre a dhcb."  # o middleware tira o markdown
+    # o resultado da ferramenta voltou para o modelo antes da resposta final
+    assert "Ordem de compra" in modelo.recebidas[1][-1].content
 
 
-def test_historico_nao_vaza_entre_bosses(data, guias):
-    pedidos = iter([
-        Pedido(orcamento="50m", itens_que_tenho=["Toxic blowpipe"]),
-        Pedido(orcamento="30m"),
-        Pedido(intencao="duvida"),
-    ])
-    historicos_vistos = []
-
-    def responder(entrada: dict) -> str:
-        historicos_vistos.append(list(entrada["historico"]))
-        return f"resposta {len(historicos_vistos)}"
-
-    conselheiro = Conselheiro(
-        data=data,
-        guias=guias,
-        interpretar=RunnableLambda(lambda _: next(pedidos)),
-        avaliar=RunnableLambda(lambda _: Avaliacao(veredito="fraco", pontos_fortes=[], pontos_fracos=[])),
-        responder=RunnableLambda(responder),
+def test_guia_e_historico_separados_por_boss(data, guias):
+    conselheiro, modelo = conselheiro_falso(
+        data,
+        guias,
+        chamada("calcular_setup", orcamento="50m", itens_que_tenho=["Toxic blowpipe"]),
+        "resposta vorkath",
+        chamada("calcular_setup", orcamento="30m"),
+        "resposta zulrah",
+        "resposta ácido",
     )
     conselheiro.responder("vorkath com 50m, tenho blowpipe")
     conselheiro.responder("e zulrah com 30m?")
-    resposta = conselheiro.responder("voltando ao vorkath, como passo do ácido?")
+    conselheiro.responder("voltando ao vorkath, como passo do ácido?")
 
-    assert historicos_vistos[1] == []  # o Zulrah começa sem nada do Vorkath
-    assert [m for _, m in historicos_vistos[2]] == ["vorkath com 50m, tenho blowpipe", "resposta 1"]
-    assert resposta.boss == "Vorkath" and resposta.tabela is None
+    sistema_zulrah, *conversa_zulrah = modelo.recebidas[2]
+    assert isinstance(sistema_zulrah, SystemMessage)
+    assert guias["Zulrah"].texto in sistema_zulrah.content and guias["Vorkath"].texto not in sistema_zulrah.content
+    perguntas_zulrah = [m.content for m in conversa_zulrah if isinstance(m, HumanMessage)]
+    assert perguntas_zulrah == ["e zulrah com 30m gp?"]  # nada do Vorkath, e "30m" normalizado
+
+    perguntas_vorkath = [m.content for m in modelo.recebidas[4] if isinstance(m, HumanMessage)]
+    assert perguntas_vorkath == ["vorkath com 50m gp, tenho blowpipe", "voltando ao vorkath, como passo do ácido?"]
     # o orçamento do Zulrah não substitui o do Vorkath
     assert conselheiro.estado.pedido.orcamento == "50m"
+
+
+def test_exige_ferramenta_quando_o_modelo_inventa_numeros(data, guias):
+    conselheiro, modelo = conselheiro_falso(
+        data, guias, "Com 50m você chega a 9.4 DPS.", chamada("calcular_setup", orcamento="50m"), "ok"
+    )
+    resposta = conselheiro.responder("vorkath com 50m")
+    assert resposta.ferramentas == ["calcular_setup"] and resposta.texto == "ok"
+    assert "Não invente números" in modelo.recebidas[1][-1].content
+
+
+def test_argumentos_que_a_mensagem_nao_cita_sao_ignorados(data, guias):
+    conselheiro, _ = conselheiro_falso(data, guias)
+    pedido = Pedido(orcamento="120k", estilo="melee", na_task=True, rigour=True, magia=90, ataque=90, prayer=90)
+    conselheiro.calcular_para_agente("Zulrah", pedido, "zulrah com 120kk, 90 magic e rigour")
+    p = conselheiro.estado.pedido
+    assert p.orcamento == "120kk"  # o regex vale mais que o modelo
+    assert p.estilo is None and p.na_task is None and p.rigour is True
+    assert p.magia == 90 and p.ataque is None and p.prayer is None
+
+    conselheiro.calcular_para_agente("Giant Mole", Pedido(ataque=70, prayer=70), "giant mole, 70 em tudo")
+    assert conselheiro.estado.pedido.ataque == 70 and conselheiro.estado.pedido.prayer == 70
+
+
+def test_limpar_resposta_tira_markdown():
+    texto = "## Dica\nCompre as *Mixed hide* e o **Regen bracelet**:\n*   Magic: 0 DPS\n- Ranged: 3.25 DPS"
+    assert limpar_resposta(texto) == "Dica\nCompre as Mixed hide e o Regen bracelet:\n- Magic: 0 DPS\n- Ranged: 3.25 DPS"
+
+
+def test_veredito_segue_a_regra_mesmo_se_o_modelo_errar(data, guias):
+    conselheiro, _ = conselheiro_falso(data, guias)  # a avaliação falsa diz sempre "fraco"
+    conselheiro.estado.pedido = Pedido(orcamento="120m", itens_que_tenho=["Toxic blowpipe"])
+    _, artefato = conselheiro.calcular_para_agente("Zulrah", Pedido(), "zulrah")
+    # sem arma de magia, o setup de magia tem DPS 0
+    assert artefato["avaliacao"]["veredito"] == "arriscado"
+
+
+@pytest.mark.parametrize(
+    ("mensagem", "esperado"),
+    [
+        ("e kree'arra?", "Kree'arra"),
+        ("quero fazer kraken", "Kraken"),
+        ("tenho blood moon chestplate e kraken tentacle", None),
+        ("vale a pena o venator bow?", None),
+    ],
+)
+def test_boss_sem_guia(data, guias, mensagem, esperado):
+    conselheiro, _ = conselheiro_falso(data, guias)
+    assert conselheiro._boss_sem_guia(mensagem) == esperado
+
+
+def test_boss_sem_guia_responde_sem_chamar_o_modelo(data, guias):
+    conselheiro, modelo = conselheiro_falso(data, guias)
+    resposta = conselheiro.responder("e kree'arra?")
+    assert resposta.texto.startswith("Ainda não tenho guia para Kree'arra") and modelo.recebidas == []
+
+
+def test_avaliar_compra_e_preco(data, guias):
+    conselheiro, _ = conselheiro_falso(data, guias)
+    conselheiro.estado.pedido = Pedido(itens_que_tenho=["Toxic blowpipe"])
+    texto = conselheiro.avaliar_compra("Vorkath", "Masori mask")
+    assert texto.startswith("Masori mask: custa") and "DPS" in texto
+    assert "já tem" in conselheiro.avaliar_compra("Vorkath", "bp")
+    assert conselheiro.preco("Twisted bow").startswith("Twisted bow: ")
+    assert conselheiro.preco("shark").startswith("Shark: ")
