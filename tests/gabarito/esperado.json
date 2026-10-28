@@ -1,0 +1,292 @@
+[
+ {
+  "id": "vork-dhcb-ruby-salve",
+  "accuracy": 0.8381968851771837,
+  "maxHit": 100,
+  "maxAttackRoll": 62025,
+  "npcDefRoll": 20070,
+  "attackSpeed": 5,
+  "expectedHit": 32.837855221055314,
+  "dps": 10.945951740351772
+ },
+ {
+  "id": "vork-dhcb-diamond-salve",
+  "accuracy": 0.8381968851771837,
+  "maxHit": 77,
+  "maxAttackRoll": 62025,
+  "npcDefRoll": 20070,
+  "attackSpeed": 5,
+  "expectedHit": 29.23822090602401,
+  "dps": 9.746073635341338
+ },
+ {
+  "id": "vork-dhcb-slayer",
+  "accuracy": 0.8358521426234871,
+  "maxHit": 100,
+  "maxAttackRoll": 61139,
+  "npcDefRoll": 20070,
+  "attackSpeed": 5,
+  "expectedHit": 31.593959391057105,
+  "dps": 10.531319797019036
+ },
+ {
+  "id": "vork-dhl-salve",
+  "accuracy": 0.7653440576118217,
+  "maxHit": 64,
+  "maxAttackRoll": 42768,
+  "npcDefRoll": 20070,
+  "attackSpeed": 4,
+  "expectedHit": 24.502784367541548,
+  "dps": 10.209493486475646
+ },
+ {
+  "id": "vork-tbow-quiver",
+  "accuracy": 0.7989704144382349,
+  "maxHit": 65,
+  "maxAttackRoll": 49922,
+  "npcDefRoll": 20070,
+  "attackSpeed": 5,
+  "expectedHit": 25.97864408158261,
+  "dps": 8.659548027194203
+ },
+ {
+  "id": "vork-bp-dragon",
+  "accuracy": 0.6666334495930908,
+  "maxHit": 29,
+  "maxAttackRoll": 30104,
+  "npcDefRoll": 20070,
+  "attackSpeed": 2,
+  "expectedHit": 9.688406134086254,
+  "dps": 8.073671778405211
+ },
+ {
+  "id": "vork-bowfa-crystal",
+  "accuracy": 0.8437757818215781,
+  "maxHit": 52,
+  "maxAttackRoll": 64240,
+  "npcDefRoll": 20070,
+  "attackSpeed": 4,
+  "expectedHit": 21.954090625131244,
+  "dps": 9.147537760471351
+ },
+ {
+  "id": "vork-dhcb-sem-rigour",
+  "accuracy": 0.7533667551361447,
+  "maxHit": 100,
+  "maxAttackRoll": 40691,
+  "npcDefRoll": 20070,
+  "attackSpeed": 6,
+  "expectedHit": 21.392899361968183,
+  "dps": 5.942472044991162
+ },
+ {
+  "id": "zul-green-swamp",
+  "accuracy": 0.9130647166794955,
+  "maxHit": 42,
+  "maxAttackRoll": 33777,
+  "npcDefRoll": 5871,
+  "attackSpeed": 4,
+  "expectedHit": 19.195593113448002,
+  "dps": 7.998163797270001
+ },
+ {
+  "id": "zul-green-sang",
+  "accuracy": 0.9130647166794955,
+  "maxHit": 50,
+  "maxAttackRoll": 33777,
+  "npcDefRoll": 5871,
+  "attackSpeed": 4,
+  "expectedHit": 21.967146129330384,
+  "dps": 9.152977553887661
+ },
+ {
+  "id": "zul-red-shadow",
+  "accuracy": 0.8720450281425891,
+  "maxHit": 50,
+  "maxAttackRoll": 77284,
+  "npcDefRoll": 19776,
+  "attackSpeed": 5,
+  "expectedHit": 25.296338437329787,
+  "dps": 8.432112812443263
+ },
+ {
+  "id": "zul-red-seas-lowlvl",
+  "accuracy": 0.5797994391093737,
+  "maxHit": 27,
+  "maxAttackRoll": 23533,
+  "npcDefRoll": 19776,
+  "attackSpeed": 4,
+  "expectedHit": 7.8479995508018785,
+  "dps": 3.2699998128341163
+ },
+ {
+  "id": "zul-blue-tbow",
+  "accuracy": 0.8026068904946305,
+  "maxHit": 50,
+  "maxAttackRoll": 50097,
+  "npcDefRoll": 19776,
+  "attackSpeed": 5,
+  "expectedHit": 25.688843515358545,
+  "dps": 8.562947838452848
+ },
+ {
+  "id": "zul-blue-bp-amethyst",
+  "accuracy": 0.6715163594087361,
+  "maxHit": 27,
+  "maxAttackRoll": 30104,
+  "npcDefRoll": 19776,
+  "attackSpeed": 2,
+  "expectedHit": 9.089453579139677,
+  "dps": 7.574544649283065
+ },
+ {
+  "id": "zul-blue-acb-diamond",
+  "accuracy": 0.7530528155824697,
+  "maxHit": 46,
+  "maxAttackRoll": 40044,
+  "npcDefRoll": 19776,
+  "attackSpeed": 5,
+  "expectedHit": 15.953027299140574,
+  "dps": 5.317675766380192
+ },
+ {
+  "id": "zul-blue-acb-ruby",
+  "accuracy": 0.7530528155824697,
+  "maxHit": 50,
+  "maxAttackRoll": 40044,
+  "npcDefRoll": 19776,
+  "attackSpeed": 5,
+  "expectedHit": 17.21918150556234,
+  "dps": 5.73972716852078
+ },
+ {
+  "id": "zul-whip-imune",
+  "accuracy": 0.6845714650250391,
+  "maxHit": 0,
+  "maxAttackRoll": 31350,
+  "npcDefRoll": 19776,
+  "attackSpeed": 4,
+  "expectedHit": 0,
+  "dps": 0
+ },
+ {
+  "id": "graardor-scythe",
+  "accuracy": 0.4165141524807581,
+  "maxHit": 81,
+  "maxAttackRoll": 33227,
+  "npcDefRoll": 39886,
+  "attackSpeed": 5,
+  "expectedHit": 16.929564822707484,
+  "dps": 5.643188274235828
+ },
+ {
+  "id": "graardor-inq-mace",
+  "accuracy": 0.5090707692307692,
+  "maxHit": 55,
+  "maxAttackRoll": 40624,
+  "npcDefRoll": 39886,
+  "attackSpeed": 4,
+  "expectedHit": 14.008536703296702,
+  "dps": 5.836890293040293
+ },
+ {
+  "id": "graardor-obsidian",
+  "accuracy": 0.3143380048637401,
+  "maxHit": 61,
+  "maxAttackRoll": 25076,
+  "npcDefRoll": 39886,
+  "attackSpeed": 7,
+  "expectedHit": 9.50267968549614,
+  "dps": 2.262542782260986
+ },
+ {
+  "id": "graardor-void-whip",
+  "accuracy": 0.39919021234988844,
+  "maxHit": 48,
+  "maxAttackRoll": 31845,
+  "npcDefRoll": 39886,
+  "attackSpeed": 4,
+  "expectedHit": 9.588711835424872,
+  "dps": 3.995296598093697
+ },
+ {
+  "id": "cerb-arclight-task",
+  "accuracy": 0.8166735028712059,
+  "maxHit": 61,
+  "maxAttackRoll": 48759,
+  "npcDefRoll": 17876,
+  "attackSpeed": 4,
+  "expectedHit": 24.92171399084389,
+  "dps": 10.384047496184955
+ },
+ {
+  "id": "cerb-emberlight",
+  "accuracy": 0.8208653133203744,
+  "maxHit": 57,
+  "maxAttackRoll": 49900,
+  "npcDefRoll": 17876,
+  "attackSpeed": 4,
+  "expectedHit": 23.408814279860326,
+  "dps": 9.753672616608469
+ },
+ {
+  "id": "cerb-fang",
+  "accuracy": 0.9572875617409854,
+  "maxHit": 48,
+  "maxAttackRoll": 34717,
+  "npcDefRoll": 12426,
+  "attackSpeed": 5,
+  "expectedHit": 26.80405172874759,
+  "dps": 8.934683909582532
+ },
+ {
+  "id": "cerb-scorching",
+  "accuracy": 0.8591706840596149,
+  "maxHit": 56,
+  "maxAttackRoll": 63473,
+  "npcDefRoll": 17876,
+  "attackSpeed": 4,
+  "expectedHit": 24.071852323565004,
+  "dps": 10.029938468152086
+ },
+ {
+  "id": "mole-torag",
+  "accuracy": 0.39774484348105144,
+  "maxHit": 46,
+  "maxAttackRoll": 27267,
+  "npcDefRoll": 34276,
+  "attackSpeed": 5,
+  "expectedHit": 9.181276803687602,
+  "dps": 3.060425601229201
+ },
+ {
+  "id": "mole-darkbow",
+  "accuracy": 0.6705478581416042,
+  "maxHit": 60,
+  "maxAttackRoll": 39334,
+  "npcDefRoll": 25916,
+  "attackSpeed": 8,
+  "expectedHit": 20.159696896386297,
+  "dps": 4.199936853413812
+ },
+ {
+  "id": "mole-void-bp",
+  "accuracy": 0.41231624030559094,
+  "maxHit": 28,
+  "maxAttackRoll": 21372,
+  "npcDefRoll": 25916,
+  "attackSpeed": 2,
+  "expectedHit": 5.786645165668122,
+  "dps": 4.822204304723435
+ },
+ {
+  "id": "mole-dwh-baixo",
+  "accuracy": 0.22497593138255972,
+  "maxHit": 24,
+  "maxAttackRoll": 15423,
+  "npcDefRoll": 34276,
+  "attackSpeed": 6,
+  "expectedHit": 2.7087102138460195,
+  "dps": 0.7524195038461166
+ }
+]

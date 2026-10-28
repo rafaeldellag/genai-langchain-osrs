@@ -1,0 +1,943 @@
+[
+ {
+  "id": "vork-dhcb-ruby-salve",
+  "monster": {
+   "name": "Vorkath",
+   "version": "Post-quest"
+  },
+  "currentHp": 750,
+  "equipment": {
+   "head": 11826,
+   "body": 11828,
+   "legs": 11830,
+   "cape": 22109,
+   "hands": 7462,
+   "feet": 13237,
+   "ring": 11771,
+   "neck": 12018,
+   "weapon": 21012,
+   "ammo": 21944,
+   "shield": 21000
+  },
+  "style": {
+   "name": "Rapid",
+   "type": "ranged",
+   "stance": "Rapid"
+  },
+  "prayers": [
+   "RIGOUR"
+  ],
+  "boosts": {
+   "ranged": 13
+  },
+  "onSlayerTask": false
+ },
+ {
+  "id": "vork-dhcb-diamond-salve",
+  "monster": {
+   "name": "Vorkath",
+   "version": "Post-quest"
+  },
+  "currentHp": 750,
+  "equipment": {
+   "head": 11826,
+   "body": 11828,
+   "legs": 11830,
+   "cape": 22109,
+   "hands": 7462,
+   "feet": 13237,
+   "ring": 11771,
+   "neck": 12018,
+   "weapon": 21012,
+   "ammo": 21946,
+   "shield": 21000
+  },
+  "style": {
+   "name": "Rapid",
+   "type": "ranged",
+   "stance": "Rapid"
+  },
+  "prayers": [
+   "RIGOUR"
+  ],
+  "boosts": {
+   "ranged": 13
+  },
+  "onSlayerTask": false
+ },
+ {
+  "id": "vork-dhcb-slayer",
+  "monster": {
+   "name": "Vorkath",
+   "version": "Post-quest"
+  },
+  "currentHp": 750,
+  "equipment": {
+   "head": 11865,
+   "body": 11828,
+   "legs": 11830,
+   "cape": 22109,
+   "hands": 7462,
+   "feet": 13237,
+   "ring": 11771,
+   "neck": 19547,
+   "weapon": 21012,
+   "ammo": 21944,
+   "shield": 21000
+  },
+  "style": {
+   "name": "Rapid",
+   "type": "ranged",
+   "stance": "Rapid"
+  },
+  "prayers": [
+   "RIGOUR"
+  ],
+  "boosts": {
+   "ranged": 13
+  },
+  "onSlayerTask": true
+ },
+ {
+  "id": "vork-dhl-salve",
+  "monster": {
+   "name": "Vorkath",
+   "version": "Post-quest"
+  },
+  "currentHp": 750,
+  "equipment": {
+   "head": 24271,
+   "body": 11832,
+   "legs": 11834,
+   "cape": 6570,
+   "hands": 22981,
+   "feet": 13239,
+   "ring": 11773,
+   "neck": 10588,
+   "shield": 22322,
+   "weapon": 22978
+  },
+  "style": {
+   "name": "Lunge",
+   "type": "stab",
+   "stance": "Controlled"
+  },
+  "prayers": [
+   "PIETY"
+  ],
+  "boosts": {
+   "atk": 19,
+   "str": 19
+  },
+  "onSlayerTask": false
+ },
+ {
+  "id": "vork-tbow-quiver",
+  "monster": {
+   "name": "Vorkath",
+   "version": "Post-quest"
+  },
+  "currentHp": 750,
+  "equipment": {
+   "head": 11826,
+   "body": 11828,
+   "legs": 11830,
+   "cape": 28955,
+   "hands": 7462,
+   "feet": 13237,
+   "ring": 11771,
+   "neck": 12018,
+   "weapon": 20997,
+   "ammo": 11227
+  },
+  "style": {
+   "name": "Rapid",
+   "type": "ranged",
+   "stance": "Rapid"
+  },
+  "prayers": [
+   "RIGOUR"
+  ],
+  "boosts": {
+   "ranged": 13
+  },
+  "onSlayerTask": false
+ },
+ {
+  "id": "vork-bp-dragon",
+  "monster": {
+   "name": "Vorkath",
+   "version": "Post-quest"
+  },
+  "currentHp": 750,
+  "equipment": {
+   "head": 11826,
+   "body": 11828,
+   "legs": 11830,
+   "cape": 22109,
+   "hands": 7462,
+   "feet": 13237,
+   "ring": 11771,
+   "neck": 19547,
+   "weapon": 12926
+  },
+  "style": {
+   "name": "Rapid",
+   "type": "ranged",
+   "stance": "Rapid"
+  },
+  "prayers": [
+   "RIGOUR"
+  ],
+  "boosts": {
+   "ranged": 13
+  },
+  "onSlayerTask": false,
+  "dart": 11231
+ },
+ {
+  "id": "vork-bowfa-crystal",
+  "monster": {
+   "name": "Vorkath",
+   "version": "Post-quest"
+  },
+  "currentHp": 750,
+  "equipment": {
+   "head": 23971,
+   "body": 23975,
+   "legs": 23979,
+   "cape": 22109,
+   "hands": 7462,
+   "feet": 13237,
+   "ring": 11771,
+   "neck": 12018,
+   "weapon": 25865
+  },
+  "style": {
+   "name": "Rapid",
+   "type": "ranged",
+   "stance": "Rapid"
+  },
+  "prayers": [
+   "RIGOUR"
+  ],
+  "boosts": {
+   "ranged": 13
+  },
+  "onSlayerTask": false
+ },
+ {
+  "id": "vork-dhcb-sem-rigour",
+  "monster": {
+   "name": "Vorkath",
+   "version": "Post-quest"
+  },
+  "currentHp": 750,
+  "equipment": {
+   "head": 11826,
+   "body": 11828,
+   "legs": 11830,
+   "cape": 22109,
+   "hands": 7462,
+   "feet": 13237,
+   "ring": 11771,
+   "neck": 19547,
+   "weapon": 21012,
+   "ammo": 21944
+  },
+  "style": {
+   "name": "Accurate",
+   "type": "ranged",
+   "stance": "Accurate"
+  },
+  "prayers": [
+   "EAGLE_EYE"
+  ],
+  "boosts": {
+   "ranged": 9
+  },
+  "onSlayerTask": false,
+  "skills": {
+   "ranged": 80
+  }
+ },
+ {
+  "id": "zul-green-swamp",
+  "monster": {
+   "name": "Zulrah",
+   "version": "Serpentine"
+  },
+  "currentHp": 500,
+  "equipment": {
+   "head": 21018,
+   "body": 21021,
+   "legs": 21024,
+   "cape": 21791,
+   "hands": 19544,
+   "feet": 13235,
+   "ring": 28313,
+   "neck": 12002,
+   "shield": 27251,
+   "weapon": 12899
+  },
+  "style": {
+   "name": "Accurate",
+   "type": "magic",
+   "stance": "Accurate"
+  },
+  "prayers": [
+   "AUGURY"
+  ],
+  "boosts": {
+   "magic": 4
+  },
+  "onSlayerTask": false
+ },
+ {
+  "id": "zul-green-sang",
+  "monster": {
+   "name": "Zulrah",
+   "version": "Serpentine"
+  },
+  "currentHp": 500,
+  "equipment": {
+   "head": 21018,
+   "body": 21021,
+   "legs": 21024,
+   "cape": 21791,
+   "hands": 19544,
+   "feet": 13235,
+   "ring": 28313,
+   "neck": 12002,
+   "shield": 27251,
+   "weapon": 22323
+  },
+  "style": {
+   "name": "Accurate",
+   "type": "magic",
+   "stance": "Accurate"
+  },
+  "prayers": [
+   "AUGURY"
+  ],
+  "boosts": {
+   "magic": 4
+  },
+  "onSlayerTask": false
+ },
+ {
+  "id": "zul-red-shadow",
+  "monster": {
+   "name": "Zulrah",
+   "version": "Magma"
+  },
+  "currentHp": 500,
+  "equipment": {
+   "head": 21018,
+   "body": 21021,
+   "legs": 21024,
+   "cape": 21791,
+   "hands": 19544,
+   "feet": 13235,
+   "ring": 28313,
+   "neck": 12002,
+   "weapon": 27275
+  },
+  "style": {
+   "name": "Accurate",
+   "type": "magic",
+   "stance": "Accurate"
+  },
+  "prayers": [
+   "AUGURY"
+  ],
+  "boosts": {
+   "magic": 4
+  },
+  "onSlayerTask": false
+ },
+ {
+  "id": "zul-red-seas-lowlvl",
+  "monster": {
+   "name": "Zulrah",
+   "version": "Magma"
+  },
+  "currentHp": 500,
+  "equipment": {
+   "head": 21018,
+   "body": 21021,
+   "legs": 21024,
+   "cape": 21791,
+   "hands": 19544,
+   "feet": 13235,
+   "ring": 28313,
+   "neck": 12002,
+   "shield": 27251,
+   "weapon": 11905
+  },
+  "style": {
+   "name": "Accurate",
+   "type": "magic",
+   "stance": "Accurate"
+  },
+  "prayers": [
+   "MYSTIC_MIGHT"
+  ],
+  "boosts": {
+   "magic": 4
+  },
+  "onSlayerTask": false,
+  "skills": {
+   "magic": 75
+  }
+ },
+ {
+  "id": "zul-blue-tbow",
+  "monster": {
+   "name": "Zulrah",
+   "version": "Tanzanite"
+  },
+  "currentHp": 500,
+  "equipment": {
+   "head": 11826,
+   "body": 11828,
+   "legs": 11830,
+   "cape": 22109,
+   "hands": 7462,
+   "feet": 13237,
+   "ring": 11771,
+   "neck": 19547,
+   "weapon": 20997,
+   "ammo": 11227
+  },
+  "style": {
+   "name": "Rapid",
+   "type": "ranged",
+   "stance": "Rapid"
+  },
+  "prayers": [
+   "RIGOUR"
+  ],
+  "boosts": {
+   "ranged": 13
+  },
+  "onSlayerTask": false
+ },
+ {
+  "id": "zul-blue-bp-amethyst",
+  "monster": {
+   "name": "Zulrah",
+   "version": "Tanzanite"
+  },
+  "currentHp": 500,
+  "equipment": {
+   "head": 11826,
+   "body": 11828,
+   "legs": 11830,
+   "cape": 22109,
+   "hands": 7462,
+   "feet": 13237,
+   "ring": 11771,
+   "neck": 19547,
+   "weapon": 12926
+  },
+  "style": {
+   "name": "Rapid",
+   "type": "ranged",
+   "stance": "Rapid"
+  },
+  "prayers": [
+   "RIGOUR"
+  ],
+  "boosts": {
+   "ranged": 13
+  },
+  "onSlayerTask": false,
+  "dart": 25851
+ },
+ {
+  "id": "zul-blue-acb-diamond",
+  "monster": {
+   "name": "Zulrah",
+   "version": "Tanzanite"
+  },
+  "currentHp": 500,
+  "equipment": {
+   "head": 11826,
+   "body": 11828,
+   "legs": 11830,
+   "cape": 22109,
+   "hands": 7462,
+   "feet": 13237,
+   "ring": 11771,
+   "neck": 19547,
+   "weapon": 11785,
+   "ammo": 9243
+  },
+  "style": {
+   "name": "Rapid",
+   "type": "ranged",
+   "stance": "Rapid"
+  },
+  "prayers": [
+   "RIGOUR"
+  ],
+  "boosts": {
+   "ranged": 13
+  },
+  "onSlayerTask": false
+ },
+ {
+  "id": "zul-blue-acb-ruby",
+  "monster": {
+   "name": "Zulrah",
+   "version": "Tanzanite"
+  },
+  "currentHp": 500,
+  "equipment": {
+   "head": 11826,
+   "body": 11828,
+   "legs": 11830,
+   "cape": 22109,
+   "hands": 7462,
+   "feet": 13237,
+   "ring": 11771,
+   "neck": 19547,
+   "weapon": 11785,
+   "ammo": 9242
+  },
+  "style": {
+   "name": "Rapid",
+   "type": "ranged",
+   "stance": "Rapid"
+  },
+  "prayers": [
+   "RIGOUR"
+  ],
+  "boosts": {
+   "ranged": 13
+  },
+  "onSlayerTask": false
+ },
+ {
+  "id": "zul-whip-imune",
+  "monster": {
+   "name": "Zulrah",
+   "version": "Tanzanite"
+  },
+  "currentHp": 500,
+  "equipment": {
+   "head": 24271,
+   "body": 11832,
+   "legs": 11834,
+   "cape": 6570,
+   "hands": 22981,
+   "feet": 13239,
+   "ring": 11773,
+   "neck": 19553,
+   "shield": 22322,
+   "weapon": 4151
+  },
+  "style": {
+   "name": "Lash",
+   "type": "slash",
+   "stance": "Controlled"
+  },
+  "prayers": [
+   "PIETY"
+  ],
+  "boosts": {
+   "atk": 19,
+   "str": 19
+  },
+  "onSlayerTask": false
+ },
+ {
+  "id": "graardor-scythe",
+  "monster": {
+   "name": "General Graardor",
+   "version": ""
+  },
+  "currentHp": 255,
+  "equipment": {
+   "head": 24271,
+   "body": 11832,
+   "legs": 11834,
+   "cape": 6570,
+   "hands": 22981,
+   "feet": 13239,
+   "ring": 11773,
+   "neck": 19553,
+   "weapon": 22325
+  },
+  "style": {
+   "name": "Chop",
+   "type": "slash",
+   "stance": "Aggressive"
+  },
+  "prayers": [
+   "PIETY"
+  ],
+  "boosts": {
+   "atk": 19,
+   "str": 19
+  },
+  "onSlayerTask": false
+ },
+ {
+  "id": "graardor-inq-mace",
+  "monster": {
+   "name": "General Graardor",
+   "version": ""
+  },
+  "currentHp": 255,
+  "equipment": {
+   "head": 24419,
+   "body": 24420,
+   "legs": 24421,
+   "cape": 6570,
+   "hands": 22981,
+   "feet": 13239,
+   "ring": 11773,
+   "neck": 19553,
+   "shield": 22322,
+   "weapon": 24417
+  },
+  "style": {
+   "name": "Pummel",
+   "type": "crush",
+   "stance": "Aggressive"
+  },
+  "prayers": [
+   "PIETY"
+  ],
+  "boosts": {
+   "atk": 19,
+   "str": 19
+  },
+  "onSlayerTask": false
+ },
+ {
+  "id": "graardor-obsidian",
+  "monster": {
+   "name": "General Graardor",
+   "version": ""
+  },
+  "currentHp": 255,
+  "equipment": {
+   "head": 21298,
+   "body": 21301,
+   "legs": 21304,
+   "cape": 6570,
+   "hands": 22981,
+   "feet": 13239,
+   "ring": 11773,
+   "neck": 11128,
+   "weapon": 6528
+  },
+  "style": {
+   "name": "Pummel",
+   "type": "crush",
+   "stance": "Aggressive"
+  },
+  "prayers": [
+   "PIETY"
+  ],
+  "boosts": {
+   "atk": 19,
+   "str": 19
+  },
+  "onSlayerTask": false
+ },
+ {
+  "id": "graardor-void-whip",
+  "monster": {
+   "name": "General Graardor",
+   "version": ""
+  },
+  "currentHp": 255,
+  "equipment": {
+   "head": 11665,
+   "body": 8839,
+   "legs": 8840,
+   "cape": 6570,
+   "hands": 8842,
+   "feet": 13239,
+   "ring": 11773,
+   "neck": 19553,
+   "shield": 22322,
+   "weapon": 4151
+  },
+  "style": {
+   "name": "Lash",
+   "type": "slash",
+   "stance": "Controlled"
+  },
+  "prayers": [
+   "PIETY"
+  ],
+  "boosts": {
+   "atk": 19,
+   "str": 19
+  },
+  "onSlayerTask": false
+ },
+ {
+  "id": "cerb-arclight-task",
+  "monster": {
+   "name": "Cerberus",
+   "version": ""
+  },
+  "currentHp": 600,
+  "equipment": {
+   "head": 11864,
+   "body": 11832,
+   "legs": 11834,
+   "cape": 6570,
+   "hands": 22981,
+   "feet": 13239,
+   "ring": 11773,
+   "neck": 19553,
+   "shield": 22322,
+   "weapon": 19675
+  },
+  "style": {
+   "name": "Slash",
+   "type": "slash",
+   "stance": "Aggressive"
+  },
+  "prayers": [
+   "PIETY"
+  ],
+  "boosts": {
+   "atk": 19,
+   "str": 19
+  },
+  "onSlayerTask": true
+ },
+ {
+  "id": "cerb-emberlight",
+  "monster": {
+   "name": "Cerberus",
+   "version": ""
+  },
+  "currentHp": 600,
+  "equipment": {
+   "head": 24271,
+   "body": 11832,
+   "legs": 11834,
+   "cape": 6570,
+   "hands": 22981,
+   "feet": 13239,
+   "ring": 11773,
+   "neck": 19553,
+   "shield": 22322,
+   "weapon": 29589
+  },
+  "style": {
+   "name": "Slash",
+   "type": "slash",
+   "stance": "Aggressive"
+  },
+  "prayers": [
+   "PIETY"
+  ],
+  "boosts": {
+   "atk": 19,
+   "str": 19
+  },
+  "onSlayerTask": false
+ },
+ {
+  "id": "cerb-fang",
+  "monster": {
+   "name": "Cerberus",
+   "version": ""
+  },
+  "currentHp": 600,
+  "equipment": {
+   "head": 24271,
+   "body": 11832,
+   "legs": 11834,
+   "cape": 6570,
+   "hands": 22981,
+   "feet": 13239,
+   "ring": 11773,
+   "neck": 19553,
+   "shield": 22322,
+   "weapon": 26219
+  },
+  "style": {
+   "name": "Lunge",
+   "type": "stab",
+   "stance": "Aggressive"
+  },
+  "prayers": [
+   "PIETY"
+  ],
+  "boosts": {
+   "atk": 19,
+   "str": 19
+  },
+  "onSlayerTask": false
+ },
+ {
+  "id": "cerb-scorching",
+  "monster": {
+   "name": "Cerberus",
+   "version": ""
+  },
+  "currentHp": 600,
+  "equipment": {
+   "head": 11865,
+   "body": 11828,
+   "legs": 11830,
+   "cape": 22109,
+   "hands": 7462,
+   "feet": 13237,
+   "ring": 11771,
+   "neck": 19547,
+   "weapon": 29591,
+   "ammo": 11227
+  },
+  "style": {
+   "name": "Rapid",
+   "type": "ranged",
+   "stance": "Rapid"
+  },
+  "prayers": [
+   "RIGOUR"
+  ],
+  "boosts": {
+   "ranged": 13
+  },
+  "onSlayerTask": true
+ },
+ {
+  "id": "mole-torag",
+  "monster": {
+   "name": "Giant Mole",
+   "version": ""
+  },
+  "currentHp": 200,
+  "equipment": {
+   "head": 24271,
+   "body": 11832,
+   "legs": 11834,
+   "cape": 6570,
+   "hands": 22981,
+   "feet": 13239,
+   "ring": 11773,
+   "neck": 19553,
+   "weapon": 4747
+  },
+  "style": {
+   "name": "Pummel",
+   "type": "crush",
+   "stance": "Aggressive"
+  },
+  "prayers": [
+   "PIETY"
+  ],
+  "boosts": {
+   "atk": 19,
+   "str": 19
+  },
+  "onSlayerTask": false
+ },
+ {
+  "id": "mole-darkbow",
+  "monster": {
+   "name": "Giant Mole",
+   "version": ""
+  },
+  "currentHp": 200,
+  "equipment": {
+   "head": 11826,
+   "body": 11828,
+   "legs": 11830,
+   "cape": 22109,
+   "hands": 7462,
+   "feet": 13237,
+   "ring": 11771,
+   "neck": 19547,
+   "weapon": 11235,
+   "ammo": 11227
+  },
+  "style": {
+   "name": "Rapid",
+   "type": "ranged",
+   "stance": "Rapid"
+  },
+  "prayers": [
+   "RIGOUR"
+  ],
+  "boosts": {
+   "ranged": 13
+  },
+  "onSlayerTask": false
+ },
+ {
+  "id": "mole-void-bp",
+  "monster": {
+   "name": "Giant Mole",
+   "version": ""
+  },
+  "currentHp": 200,
+  "equipment": {
+   "head": 11664,
+   "body": 13072,
+   "legs": 13073,
+   "cape": 22109,
+   "hands": 8842,
+   "feet": 13237,
+   "ring": 11771,
+   "neck": 19547,
+   "weapon": 12926
+  },
+  "style": {
+   "name": "Rapid",
+   "type": "ranged",
+   "stance": "Rapid"
+  },
+  "prayers": [
+   "RIGOUR"
+  ],
+  "boosts": {
+   "ranged": 13
+  },
+  "onSlayerTask": false,
+  "dart": 816
+ },
+ {
+  "id": "mole-dwh-baixo",
+  "monster": {
+   "name": "Giant Mole",
+   "version": ""
+  },
+  "currentHp": 200,
+  "equipment": {
+   "weapon": 13576,
+   "body": 10551,
+   "legs": 4087
+  },
+  "style": {
+   "name": "Pummel",
+   "type": "crush",
+   "stance": "Aggressive"
+  },
+  "prayers": [
+   "ULTIMATE_STRENGTH",
+   "INCREDIBLE_REFLEXES"
+  ],
+  "boosts": {
+   "atk": 8,
+   "str": 8
+  },
+  "onSlayerTask": false,
+  "skills": {
+   "atk": 70,
+   "str": 70
+  }
+ }
+]

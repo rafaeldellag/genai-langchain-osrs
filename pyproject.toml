@@ -1,0 +1,11 @@
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-q"
+
+[tool.ruff]
+line-length = 120
+target-version = "py313"
+
+[tool.ruff.lint.per-file-ignores]
+# calc.py segue a estrutura do original em TypeScript para facilitar a comparação
+"conselheiro/calc.py" = ["SIM114"]
