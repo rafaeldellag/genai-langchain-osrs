@@ -6,8 +6,10 @@ import json
 import re
 from dataclasses import dataclass, field
 
+import httpx
 from langchain_core.exceptions import OutputParserException
 from langchain_core.runnables import Runnable
+from ollama import ResponseError
 
 from conselheiro.chains import Avaliacao, Pedido, chain_avaliar, chain_interpretar, chain_responder
 from conselheiro.config import Settings
@@ -69,6 +71,17 @@ def fmt_gp(valor: int | None) -> str:
             return f"{valor / limite:.1f}{sufixo}".replace(".0" + sufixo, sufixo)
     return str(valor)
 
+
+
+def explicar_erro(erro: Exception, settings: Settings) -> str | None:
+    """Mensagem para o jogador quando o Ollama falha; None se o erro é outro."""
+    if isinstance(erro, httpx.ConnectError):
+        return f"O Ollama não respondeu em {settings.ollama_base_url}. Ele está rodando?"
+    if isinstance(erro, ResponseError):
+        if erro.status_code == 404:
+            return f"O modelo {settings.ollama_model} não está instalado. Rode: ollama pull {settings.ollama_model}"
+        return f"O Ollama devolveu um erro: {erro.error}"
+    return None
 
 
 def limitar_frases(texto: str, maximo: int = MAX_FRASES) -> str:

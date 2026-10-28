@@ -1,23 +1,21 @@
 """Conselheiro de bosses de OSRS no terminal.
 
 Exemplo: "vou fazer vorkath, tenho 50m, 90 range, rigour e já tenho blowpipe e salve ei"
-Digite "sair" para encerrar.
+Digite "sair" para encerrar. Para usar no navegador, rode servidor.py.
 """
 
 import sys
 
 import httpx
-from ollama import ResponseError
 
-from conselheiro.conselheiro import Conselheiro
+from conselheiro.conselheiro import Conselheiro, explicar_erro
 
 try:
     conselheiro = Conselheiro()
 except httpx.HTTPError as erro:
     sys.exit(f"Não consegui baixar os dados da OSRS Wiki ({erro}). Confira a conexão e tente de novo.")
 
-modelo = conselheiro.settings.ollama_model
-print(f"Conselheiro de bosses ({modelo}). Bosses: {', '.join(conselheiro.guias)}.")
+print(f"Conselheiro de bosses ({conselheiro.settings.ollama_model}). Bosses: {', '.join(conselheiro.guias)}.")
 print('Digite "sair" para encerrar.\n')
 
 while True:
@@ -33,17 +31,13 @@ while True:
 
     try:
         resposta = conselheiro.responder(mensagem)
-    except httpx.ConnectError:
-        print(f"\nO Ollama não respondeu em {conselheiro.settings.ollama_base_url}. Ele está rodando?\n")
-        continue
-    except ResponseError as erro:
-        if erro.status_code == 404:
-            print(f"\nO modelo {modelo} não está instalado. Rode: ollama pull {modelo}\n")
-        else:
-            print(f"\nO Ollama devolveu um erro: {erro.error}\n")
-        continue
     except KeyboardInterrupt:
         print("\n(cancelado)\n")
+        continue
+    except Exception as erro:
+        if (explicacao := explicar_erro(erro, conselheiro.settings)) is None:
+            raise
+        print(f"\n{explicacao}\n")
         continue
 
     if resposta.tabela:

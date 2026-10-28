@@ -1,6 +1,6 @@
 # Conselheiro de bosses de OSRS (LangChain + LLM local)
 
-Agente de terminal que monta o setup com mais dano para um boss de Old School RuneScape dentro do seu
+Agente (no navegador ou no terminal) que monta o setup com mais dano para um boss de Old School RuneScape dentro do seu
 orçamento, diz em que ordem comprar os upgrades, avalia o que você já tem e responde dúvidas de mecânica.
 Roda com uma LLM local pelo Ollama.
 
@@ -81,8 +81,12 @@ python -m venv .venv
 source .venv/bin/activate
 pip install -r requirements.txt
 
-python agente.py
+python servidor.py   # interface web em http://localhost:8080
+python agente.py     # ou no terminal
 ```
+
+Na interface web, cada aba do navegador é uma conversa separada, e o botão "Nova conversa" zera o histórico.
+Para mudar o endereço, use as variáveis `HOST` e `PORT`. A API fica documentada em `/docs`.
 
 Na primeira execução, os dados de itens e monstros (~5 MB) são baixados da Wiki e ficam em cache por 7 dias.
 Os preços ficam em cache por 10 minutos. Para mudar o modelo ou o endereço do Ollama, copie `.env.example`

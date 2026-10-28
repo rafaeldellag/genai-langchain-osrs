@@ -1,0 +1,325 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Conselheiro de bosses</title>
+<style>
+  :root {
+    --bg: #f6f4ef;
+    --surface: #ffffff;
+    --surface-2: #efece4;
+    --text: #1f1d1a;
+    --muted: #6b665d;
+    --border: #ddd8cc;
+    --accent: #8a5a12;
+    --accent-text: #ffffff;
+    --user: #e9dfc9;
+    --ok: #2f7a3e;
+    --warn: #a86a00;
+    --bad: #b3322b;
+    --mono: ui-monospace, "Cascadia Mono", "JetBrains Mono", Consolas, monospace;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #161513;
+      --surface: #201f1c;
+      --surface-2: #2a2824;
+      --text: #ece8df;
+      --muted: #a39d91;
+      --border: #3a3732;
+      --accent: #d9a441;
+      --accent-text: #1a1408;
+      --user: #3a3122;
+      --ok: #6cc47f;
+      --warn: #e2a93b;
+      --bad: #ef7a72;
+    }
+  }
+  * { box-sizing: border-box; }
+  html, body { height: 100%; }
+  body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--text);
+    font: 15px/1.5 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+    display: flex;
+    flex-direction: column;
+  }
+  header {
+    border-bottom: 1px solid var(--border);
+    background: var(--surface);
+  }
+  .barra {
+    max-width: 1000px;
+    margin: 0 auto;
+    padding: 12px 16px;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    flex-wrap: wrap;
+  }
+  h1 { font-size: 17px; margin: 0; }
+  .info { color: var(--muted); font-size: 13px; flex: 1; min-width: 200px; }
+  button {
+    font: inherit;
+    border-radius: 8px;
+    border: 1px solid var(--border);
+    background: var(--surface-2);
+    color: var(--text);
+    padding: 6px 12px;
+    cursor: pointer;
+  }
+  button:hover { border-color: var(--accent); }
+  button:disabled { opacity: .5; cursor: default; }
+  main { flex: 1; overflow-y: auto; }
+  #conversa {
+    max-width: 1000px;
+    margin: 0 auto;
+    padding: 20px 16px 8px;
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+  }
+  .vazio { color: var(--muted); text-align: center; padding: 32px 8px 8px; }
+  .vazio p { margin: 0 0 14px; }
+  .exemplos { display: flex; flex-wrap: wrap; gap: 8px; justify-content: center; }
+  .exemplos button { font-size: 13px; text-align: left; }
+  .msg { max-width: 100%; }
+  .usuario {
+    align-self: flex-end;
+    background: var(--user);
+    padding: 8px 12px;
+    border-radius: 12px 12px 2px 12px;
+    max-width: 80%;
+    white-space: pre-wrap;
+  }
+  .agente {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 12px 14px;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+  }
+  .agente .texto p { margin: 0 0 6px; }
+  .agente .texto p:last-child { margin: 0; }
+  details { border: 1px solid var(--border); border-radius: 8px; background: var(--surface-2); }
+  summary { cursor: pointer; padding: 6px 10px; font-size: 13px; color: var(--muted); }
+  pre.tabela {
+    margin: 0;
+    padding: 4px 10px 10px;
+    font: 12.5px/1.45 var(--mono);
+    white-space: pre-wrap;
+    overflow-wrap: anywhere;
+  }
+  .tabela .h1 { font-weight: 700; color: var(--accent); }
+  .tabela .h2 { font-weight: 700; }
+  .tabela .rec { font-weight: 600; }
+  .avaliacao { font-size: 14px; }
+  .veredito {
+    display: inline-block;
+    font-size: 12px;
+    font-weight: 700;
+    letter-spacing: .04em;
+    padding: 2px 8px;
+    border-radius: 999px;
+    color: var(--surface);
+    margin-right: 6px;
+  }
+  .adequado { background: var(--ok); }
+  .fraco { background: var(--warn); }
+  .arriscado { background: var(--bad); }
+  .avaliacao ul { margin: 6px 0 0; padding-left: 20px; }
+  .avaliacao li.mais::marker { content: "+  "; color: var(--ok); }
+  .avaliacao li.menos::marker { content: "−  "; color: var(--bad); }
+  .erro { border-color: var(--bad); color: var(--bad); }
+  .pensando { color: var(--muted); font-style: italic; }
+  footer { border-top: 1px solid var(--border); background: var(--surface); }
+  form {
+    max-width: 1000px;
+    margin: 0 auto;
+    padding: 12px 16px;
+    display: flex;
+    gap: 8px;
+    align-items: flex-end;
+  }
+  textarea {
+    flex: 1;
+    font: inherit;
+    resize: none;
+    min-height: 44px;
+    max-height: 160px;
+    padding: 10px 12px;
+    border-radius: 10px;
+    border: 1px solid var(--border);
+    background: var(--bg);
+    color: var(--text);
+  }
+  textarea:focus { outline: 2px solid var(--accent); outline-offset: -1px; }
+  #enviar { background: var(--accent); color: var(--accent-text); border-color: var(--accent); height: 44px; padding: 0 18px; }
+  @media (max-width: 600px) {
+    .usuario { max-width: 92%; }
+    pre.tabela { font-size: 11.5px; }
+  }
+</style>
+</head>
+<body>
+<header>
+  <div class="barra">
+    <h1>Conselheiro de bosses</h1>
+    <span class="info" id="info">carregando…</span>
+    <button type="button" id="nova">Nova conversa</button>
+  </div>
+</header>
+<main id="rolagem">
+  <div id="conversa"></div>
+</main>
+<footer>
+  <form id="form">
+    <textarea id="entrada" rows="1" placeholder="Ex.: vou fazer vorkath com 50m, 90 range, rigour, tenho bp e salve ei" autofocus></textarea>
+    <button type="submit" id="enviar">Enviar</button>
+  </form>
+</footer>
+<script>
+  const EXEMPLOS = [
+    "vou fazer vorkath com 50m, 90 range, rigour, tenho bp e salve ei",
+    "cerberus com 80m, 90 atk/str/def, tenho arclight e slayer helm",
+    "zulrah com 120m, 90 magic e range, augury e rigour",
+    "como passo do especial de ácido do vorkath?",
+  ];
+  const conversa = document.getElementById("conversa");
+  const rolagem = document.getElementById("rolagem");
+  const entrada = document.getElementById("entrada");
+  const enviar = document.getElementById("enviar");
+  let sessao = novaSessao();
+
+  function novaSessao() {
+    return (crypto.randomUUID && crypto.randomUUID()) || String(Math.random()).slice(2);
+  }
+
+  function el(tag, classe, texto) {
+    const e = document.createElement(tag);
+    if (classe) e.className = classe;
+    if (texto !== undefined) e.textContent = texto;
+    return e;
+  }
+
+  function rolarParaFim() { rolagem.scrollTop = rolagem.scrollHeight; }
+
+  function mostrarVazio() {
+    conversa.replaceChildren();
+    const vazio = el("div", "vazio");
+    vazio.append(el("p", "", "Diga o boss, o orçamento, seus níveis e o que já tem. Ou pergunte uma mecânica."));
+    const lista = el("div", "exemplos");
+    for (const exemplo of EXEMPLOS) {
+      const b = el("button", "", exemplo);
+      b.type = "button";
+      b.onclick = () => { entrada.value = exemplo; mandar(); };
+      lista.append(b);
+    }
+    vazio.append(lista);
+    conversa.append(vazio);
+  }
+
+  function tabelaFormatada(texto) {
+    const pre = el("pre", "tabela");
+    for (const linha of texto.split("\n")) {
+      let classe = "";
+      if (linha.startsWith("== ")) classe = "h1";
+      else if (linha.startsWith("[")) classe = "h2";
+      else if (linha.trimStart().startsWith("Recomendado:")) classe = "rec";
+      pre.append(el("span", classe, linha + "\n"));
+    }
+    return pre;
+  }
+
+  function mensagemAgente(r) {
+    const card = el("div", "msg agente");
+    if (r.tabela) {
+      for (const d of conversa.querySelectorAll("details[open]")) d.open = false;
+      const det = el("details");
+      det.open = true;
+      det.append(el("summary", "", `Cálculo${r.boss ? " · " + r.boss : ""} (DPS e preços do GE)`));
+      det.append(tabelaFormatada(r.tabela));
+      card.append(det);
+    }
+    if (r.avaliacao) {
+      const a = r.avaliacao;
+      const box = el("div", "avaliacao");
+      box.append(el("span", "veredito " + a.veredito, a.veredito.toUpperCase()));
+      box.append(document.createTextNode("Avaliação do seu setup atual"));
+      const ul = el("ul");
+      for (const p of a.pontos_fortes) ul.append(el("li", "mais", p));
+      for (const p of a.pontos_fracos) ul.append(el("li", "menos", p));
+      if (ul.children.length) box.append(ul);
+      card.append(box);
+    }
+    const texto = el("div", "texto");
+    for (const linha of r.texto.split("\n").filter(l => l.trim())) texto.append(el("p", "", linha));
+    card.append(texto);
+    return card;
+  }
+
+  async function mandar() {
+    const mensagem = entrada.value.trim();
+    if (!mensagem || enviar.disabled) return;
+    conversa.querySelector(".vazio")?.remove();
+    conversa.append(el("div", "msg usuario", mensagem));
+    entrada.value = "";
+    ajustarAltura();
+    enviar.disabled = true;
+
+    const espera = el("div", "msg agente pensando", "Pensando…");
+    conversa.append(espera);
+    rolarParaFim();
+    const inicio = Date.now();
+    const relogio = setInterval(() => {
+      espera.textContent = `Pensando… ${Math.round((Date.now() - inicio) / 1000)} s`;
+    }, 1000);
+
+    try {
+      const resp = await fetch("/api/mensagem", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ sessao, mensagem }),
+      });
+      const corpo = await resp.json().catch(() => ({}));
+      if (!resp.ok) throw new Error(corpo.detail && typeof corpo.detail === "string" ? corpo.detail : `Erro ${resp.status} no servidor.`);
+      espera.replaceWith(mensagemAgente(corpo));
+    } catch (erro) {
+      const msg = erro instanceof TypeError ? "Sem resposta do servidor. Ele ainda está rodando?" : erro.message;
+      espera.replaceWith(el("div", "msg agente erro", msg));
+    } finally {
+      clearInterval(relogio);
+      enviar.disabled = false;
+      entrada.focus();
+      rolarParaFim();
+    }
+  }
+
+  function ajustarAltura() {
+    entrada.style.height = "auto";
+    entrada.style.height = Math.min(entrada.scrollHeight, 160) + "px";
+  }
+
+  document.getElementById("form").addEventListener("submit", e => { e.preventDefault(); mandar(); });
+  entrada.addEventListener("keydown", e => {
+    if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); mandar(); }
+  });
+  entrada.addEventListener("input", ajustarAltura);
+  document.getElementById("nova").onclick = () => {
+    fetch(`/api/sessoes/${sessao}`, { method: "DELETE" }).catch(() => {});
+    sessao = novaSessao();
+    mostrarVazio();
+    entrada.focus();
+  };
+
+  fetch("/api/info").then(r => r.json()).then(i => {
+    document.getElementById("info").textContent = `${i.modelo} · ${i.bosses.join(", ")}`;
+  }).catch(() => { document.getElementById("info").textContent = "servidor fora do ar"; });
+  mostrarVazio();
+</script>
+</body>
+</html>
