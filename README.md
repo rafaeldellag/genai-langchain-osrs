@@ -58,8 +58,10 @@ trabalho escrever na mão:
 | `@dynamic_prompt` | o guia do boss da conversa entra no system prompt, e só ele |
 | `ContextEditingMiddleware` | cada tabela tem ~900 tokens; as antigas saem do contexto e fica só a última |
 | `trim_messages` num `@wrap_model_call` | conversa longa não estoura o `num_ctx` do Ollama |
+| `@wrap_model_call` (`corrigir_argumentos`) | o modelo de 4B inventava níveis, task e estilo ("90 magic" virava ataque 90) e errava valores ("80 defesa" virou 77); a chamada de `calcular_setup` é conferida contra a mensagem antes de a ferramenta rodar e antes de a tela mostrar |
 | `@wrap_model_call` (`exigir_ferramenta`) | o modelo de 4B dizia "calculei o setup" sem chamar a ferramenta; se ele responde com números sem ter usado ferramenta, o middleware pede de novo |
-| `@after_model` (`limpar_texto`) | tira markdown e corta resposta em loop direto no estado da conversa |
+| `@wrap_model_call` (`conferir_itens`) | a resposta citava item que não estava no cálculo (DHCB no lugar do Dragon crossbow no Zulrah); o middleware pede para reescrever com as armas do cálculo e, se o modelo insistir, tira a frase |
+| `@after_model` (`limpar_texto`) | tira markdown e corta resposta em loop ou interrompida pelo limite de tokens, direto no estado da conversa |
 | `ModelCallLimitMiddleware` | o modelo pequeno não fica chamando ferramenta para sempre |
 | `stream(stream_mode=["updates", "messages"])` | a interface mostra cada ferramenta chamada, o cálculo e o texto chegando em tempo real |
 
@@ -84,8 +86,9 @@ mensagem ──► boss citado? (Python) ──► thread "<sessão>:<boss>" no 
 
 **Os números nunca vêm do modelo.** Uma LLM local pequena não conhece a meta do jogo nem tem acesso a dados
 externos. O DPS e os preços saem das ferramentas; o modelo escolhe a ferramenta, preenche os argumentos e explica
-o resultado. Onde o modelo de 4B erra com frequência, o código confere: o orçamento é lido por regex ("120kk" é
-120 milhões), e estilo, task e Rigour só valem se a mensagem citar.
+o resultado. Onde o modelo de 4B erra com frequência, o código confere: o orçamento e os níveis são lidos da
+mensagem ("120kk" é 120 milhões, "80 defesa" é 80), estilo, task e Rigour só valem se a mensagem citar, e item
+citado na resposta tem que ter vindo do cálculo, do guia ou da conversa.
 
 - **Cálculo de DPS** (`conselheiro/calc.py`): porte para Python de parte da
   [calculadora de DPS da OSRS Wiki](https://github.com/weirdgloop/osrs-dps-calc). `tests/test_calc.py`
@@ -156,7 +159,8 @@ inventário precisam do nome exato do GE. `pytest` confere as duas coisas.
 - Itens que não se compram no GE só entram se você disser que tem.
 - Munição e dardos do blowpipe ficam fora do orçamento; a tabela mostra o preço de 500 unidades à parte. Armas de
   arremesso (facas, javelins, thrownaxes) entram no orçamento como uma pilha de 500.
-- O texto do modelo de 4B às vezes erra detalhes. A tabela é a fonte confiável.
+- O texto do modelo de 4B às vezes erra detalhes que o código não confere, como para que serve um item ou uma
+  conta que ele mesmo fez. A tabela é a fonte confiável.
 
 ## Créditos e licença
 

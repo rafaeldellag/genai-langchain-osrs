@@ -57,14 +57,32 @@ def _marcador_de_lista(texto: str, pos: int) -> bool:
     return texto[inicio_da_linha:pos].strip().isdigit()
 
 
+def _fins_de_frase(texto: str) -> list[int]:
+    return [m.end() for m in FIM_DE_FRASE.finditer(texto) if not _marcador_de_lista(texto, m.start())]
+
+
 def limitar_frases(texto: str, maximo: int = MAX_FRASES) -> str:
     """Corta o texto depois da enésima frase (ou linha), mantendo a formatação."""
-    fins = [m.end() for m in FIM_DE_FRASE.finditer(texto) if not _marcador_de_lista(texto, m.start())]
+    fins = _fins_de_frase(texto)
     return texto[: fins[maximo - 1]].strip() if len(fins) >= maximo else texto.strip()
 
 
-def limpar_resposta(texto: str) -> str:
-    """Tira o markdown que o modelo insiste em usar e corta respostas em loop."""
+def cortar_frase_incompleta(texto: str) -> str:
+    """Resposta que parou no limite de tokens ("Itens essenciais:"): fica até a última frase terminada."""
+    fins = [m.end() for m in re.finditer(r"[.!?](?=\s|$)", texto) if not _marcador_de_lista(texto, m.start())]
+    return texto[: fins[-1]].strip() if fins else texto.strip()
+
+
+def tirar_frases_com(texto: str, termos: list[str]) -> str:
+    """Remove as frases (ou linhas) que citam algum dos termos."""
+    termos = [t.casefold() for t in termos]
+    inicios = [0, *_fins_de_frase(texto)]
+    frases = [texto[a:b] for a, b in zip(inicios, [*inicios[1:], len(texto)])]
+    return "".join(f for f in frases if not any(t in f.casefold().replace("’", "'") for t in termos)).strip()
+
+
+def limpar_resposta(texto: str, cortada: bool = False) -> str:
+    """Tira o markdown que o modelo insiste em usar e corta respostas em loop ou interrompidas."""
     texto = re.sub(r"^(\s*)\*\s+", r"\1- ", texto, flags=re.MULTILINE)  # "*   item" vira "- item"
-    texto = re.sub(r"^#+\s*", "", texto, flags=re.MULTILINE).replace("*", "")
-    return limitar_frases(texto)
+    texto = limitar_frases(re.sub(r"^#+\s*", "", texto, flags=re.MULTILINE).replace("*", ""))
+    return cortar_frase_incompleta(texto) if cortada or texto.endswith(":") else texto

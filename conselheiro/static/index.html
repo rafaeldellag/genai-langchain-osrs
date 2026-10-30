@@ -312,6 +312,7 @@
     }, 1000);
 
     let parcial = "";
+    let idDoTexto = null;
     function tratar(ev) {
       if (ev.tipo === "ferramenta") {
         // o texto que veio antes da chamada de ferramenta era o modelo se adiantando: descarta
@@ -325,6 +326,11 @@
       } else if (ev.tipo === "calculo") {
         mostrarCalculo(calculo, ev);
       } else if (ev.tipo === "token") {
+        // id novo: o agente pediu para o modelo reescrever a resposta; o rascunho anterior sai
+        if (ev.id !== idDoTexto) {
+          idDoTexto = ev.id;
+          parcial = "";
+        }
         parcial += ev.texto;
         mostrarTexto(texto, parcial);
       } else if (ev.tipo === "fim") {

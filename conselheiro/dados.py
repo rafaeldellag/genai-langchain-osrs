@@ -33,6 +33,9 @@ UNUSABLE_VERSIONS = (
 )
 PREFERRED_VERSIONS = {"": 3, "Charged": 3, "Active": 3, "Normal": 2}
 
+# "Salve!" e "torso" aparecem em texto comum; não dá para tratá-los como item
+APELIDOS_QUE_SAO_PALAVRAS = {"salve", "torso", "infernal"}
+
 # Apelidos usados pelos jogadores (o LLM às vezes devolve assim).
 ITEM_ALIASES = {
     "dhcb": "Dragon hunter crossbow",
@@ -157,6 +160,20 @@ class GameData:
     @cached_property
     def nomes_de_itens(self) -> set[str]:
         return {name.casefold() for name in self.ge_ids} | {item.name.casefold() for item in self.items}
+
+    @cached_property
+    def equipamentos_citaveis(self) -> dict[str, str]:
+        """Nome ou apelido -> nome do item, em minúsculas, para achar equipamento no texto do modelo.
+
+        Nomes de uma palavra só ("Crossbow") e apelidos que também são palavras em português ficam de fora.
+        """
+        nomes = {nome.casefold(): nome.casefold() for nome in self.usable if " " in nome}
+        apelidos = {
+            apelido: nome.casefold()
+            for apelido, nome in ITEM_ALIASES.items()
+            if apelido not in APELIDOS_QUE_SAO_PALAVRAS
+        }
+        return nomes | apelidos
 
     @cached_property
     def _ge_por_caixa(self) -> dict[str, str]:

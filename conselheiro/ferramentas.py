@@ -22,7 +22,7 @@ class Contexto:
     # é um Conselheiro; com o tipo de verdade o pydantic tenta montar esquema dele e cai num import circular
     conselheiro: Any
     boss: str | None
-    mensagem: str
+    mensagem: str  # a mensagem como o jogador escreveu, para conferir os argumentos
 
 
 @tool(args_schema=Pedido, response_format="content_and_artifact")
@@ -35,7 +35,7 @@ def calcular_setup(runtime: ToolRuntime[Contexto], **pedido: Any) -> tuple[str, 
     itens_que_tenho ["Toxic blowpipe"]. Um número vale para todos os atributos listados:
     "90 de ataque, força e defesa" -> ataque 90, forca 90, defesa 90; "70 em tudo" -> todos os níveis 70."""
     ctx = runtime.context
-    return ctx.conselheiro.calcular_para_agente(ctx.boss, Pedido(**pedido), ctx.mensagem)
+    return ctx.conselheiro.calcular_para_agente(ctx.boss, Pedido(**pedido))
 
 
 @tool

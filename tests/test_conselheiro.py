@@ -10,12 +10,20 @@ from pydantic import Field
 
 from conselheiro.agente import criar_agente
 from conselheiro.chains import Avaliacao, Pedido, chain_avaliar
+from conselheiro.conferencia import conferir_pedido, itens_sem_fonte
 from conselheiro.config import Settings
 from conselheiro.conselheiro import Conselheiro, mesclar
 from conselheiro.dados import GameData
 from conselheiro.guias import carregar_guias, identificar_boss
 from conselheiro.otimizador import AMMO_STACK, Otimizador, Perfil
-from conselheiro.texto import MAX_FRASES, limitar_frases, limpar_resposta, orcamento_na_mensagem, parse_gp
+from conselheiro.texto import (
+    MAX_FRASES,
+    limitar_frases,
+    limpar_resposta,
+    orcamento_na_mensagem,
+    parse_gp,
+    tirar_frases_com,
+)
 
 
 class ModeloFalso(GenericFakeChatModel):
@@ -215,17 +223,51 @@ def test_exige_ferramenta_quando_o_modelo_inventa_numeros(data, guias):
     assert "Não invente números" in modelo.recebidas[1][-1].content
 
 
-def test_argumentos_que_a_mensagem_nao_cita_sao_ignorados(data, guias):
-    conselheiro, _ = conselheiro_falso(data, guias)
-    pedido = Pedido(orcamento="120k", estilo="melee", na_task=True, rigour=True, magia=90, ataque=90, prayer=90)
-    conselheiro.calcular_para_agente("Zulrah", pedido, "zulrah com 120kk, 90 magic e rigour")
-    p = conselheiro.estado.pedido
-    assert p.orcamento == "120kk"  # o regex vale mais que o modelo
-    assert p.estilo is None and p.na_task is None and p.rigour is True
-    assert p.magia == 90 and p.ataque is None and p.prayer is None
+def test_conferir_pedido_ignora_o_que_a_mensagem_nao_cita():
+    args = {"orcamento": "120k", "estilo": "melee", "na_task": "True", "rigour": "true", "magia": "90",
+            "ataque": 90, "prayer": 90}
+    assert conferir_pedido(args, "zulrah com 120kk, 90 magic e rigour") == {
+        "orcamento": "120kk", "magia": 90, "rigour": True  # o regex vale mais que o modelo
+    }
+    assert conferir_pedido({"ataque": 70, "prayer": 70}, "giant mole, 70 em tudo") == {"ataque": 70, "prayer": 70}
+    # o número da mensagem vale mais que o do modelo, e nível esquecido entra
+    mensagem = "vorkath, tenho 30m, 85 range, 80 defesa, 77 prayer e rigour"
+    assert conferir_pedido({"orcamento": "30m", "ranged": 85, "defesa": 77, "rigour": True}, mensagem) == {
+        "orcamento": "30m", "defesa": 80, "ranged": 85, "prayer": 77, "rigour": True
+    }
+    assert conferir_pedido({"forca": 90}, "atk 92 e str: 90") == {"ataque": 92, "forca": 90}
 
-    conselheiro.calcular_para_agente("Giant Mole", Pedido(ataque=70, prayer=70), "giant mole, 70 em tudo")
-    assert conselheiro.estado.pedido.ataque == 70 and conselheiro.estado.pedido.prayer == 70
+
+def test_argumentos_conferidos_antes_da_ferramenta_e_da_tela(data, guias):
+    conselheiro, _ = conselheiro_falso(
+        data, guias, chamada("calcular_setup", orcamento="30m", defesa=77, ataque=85, na_task=True), "ok"
+    )
+    eventos = list(conselheiro.eventos("vorkath com 30m e 80 defesa"))
+    assert eventos[0]["tipo"] == "ferramenta" and eventos[0]["args"] == {"orcamento": "30m", "defesa": 80}
+    p = conselheiro.estado.pedido
+    assert p.defesa == 80 and p.ataque is None and p.na_task is None
+
+
+def test_itens_sem_fonte(data):
+    equipamentos = data.equipamentos_citaveis
+    fonte = "weapon  Dragon crossbow\nammo    Ruby dragon bolts (e)"
+    texto = "Compre a Dragon hunter crossbow com Ruby dragon bolts (e). A DHCB é ótima. Salve, boa sorte!"
+    assert itens_sem_fonte(texto, fonte, equipamentos) == ["Dragon hunter crossbow", "DHCB"]
+    assert itens_sem_fonte("Use o Dragon crossbow.", fonte, equipamentos) == []
+
+
+def test_item_sem_fonte_pede_para_reescrever_e_depois_tira_a_frase(data, guias):
+    conselheiro, modelo = conselheiro_falso(data, guias, "Use a Twisted bow.", "Use a Twisted bow. Boa sorte.")
+    resposta = conselheiro.responder("como passo do ácido do vorkath?")
+    assert "Twisted bow" in modelo.recebidas[1][-1].content  # o lembrete cita o item
+    assert resposta.texto == "Boa sorte."
+
+
+def test_resposta_cortada_fica_ate_a_ultima_frase():
+    texto = "Magia: Sanguinesti staff.\n- Ranged: Dragon crossbow.\n\nItens essenciais:"
+    assert limpar_resposta(texto) == "Magia: Sanguinesti staff.\n- Ranged: Dragon crossbow."
+    assert limpar_resposta("Compre a arma. Depois o", cortada=True) == "Compre a arma."
+    assert tirar_frases_com("Uma. Use a DHCB. Três.", ["dhcb"]) == "Uma. Três."
 
 
 def test_limpar_resposta_tira_markdown():
@@ -236,7 +278,7 @@ def test_limpar_resposta_tira_markdown():
 def test_veredito_segue_a_regra_mesmo_se_o_modelo_errar(data, guias):
     conselheiro, _ = conselheiro_falso(data, guias)  # a avaliação falsa diz sempre "fraco"
     conselheiro.estado.pedido = Pedido(orcamento="120m", itens_que_tenho=["Toxic blowpipe"])
-    _, artefato = conselheiro.calcular_para_agente("Zulrah", Pedido(), "zulrah")
+    _, artefato = conselheiro.calcular_para_agente("Zulrah", Pedido())
     # sem arma de magia, o setup de magia tem DPS 0
     assert artefato["avaliacao"]["veredito"] == "arriscado"
 

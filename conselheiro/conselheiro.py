@@ -18,6 +18,7 @@ from ollama import ResponseError
 
 from conselheiro.agente import criar_agente
 from conselheiro.chains import Avaliacao, Pedido, chain_avaliar
+from conselheiro.conferencia import NIVEIS_PEDIDO
 from conselheiro.config import Settings
 from conselheiro.dados import GameData
 from conselheiro.ferramentas import Contexto
@@ -26,34 +27,7 @@ from conselheiro.otimizador import AMMO_STACK, DEFAULT_LEVELS, Otimizador, Perfi
 from conselheiro.texto import fmt_gp, orcamento_na_mensagem, parse_gp
 
 SLOT_ORDER = ("weapon", "ammo", "head", "cape", "neck", "body", "shield", "legs", "hands", "feet", "ring")
-NIVEIS_PEDIDO = {
-    "ataque": "atk", "forca": "str", "defesa": "def", "ranged": "ranged",
-    "magia": "magic", "vida": "hp", "prayer": "prayer",
-}
-# o modelo de 4B às vezes preenche nível, task ou Rigour que o jogador nem citou ("90 magic" virava
-# ataque 90 também); um campo só vale se a mensagem falar dele
-CAMPO_CITADO = {
-    campo: re.compile(rf"\b({padrao})\b", re.IGNORECASE)
-    for campo, padrao in {
-        "ataque": r"ataque|attack|atk|att",
-        "forca": r"for[çc]a|strength|str",
-        "defesa": r"defesa|defen[cs]e|def",
-        "ranged": r"ranged?|rng",
-        "magia": r"magia|magic|mage|mag",
-        "vida": r"vida|hp|hitpoints?",
-        "prayer": r"prayer|pray|reza|ora[çc][ãa]o",
-        "rigour": r"rigour",
-        "augury": r"augury",
-        "na_task": r"task",
-    }.items()
-}
-NIVEIS_EM_TUDO_RE = re.compile(r"\b(tudo|todos|todas|all)\b", re.IGNORECASE)
-# o estilo escolhido precisa estar na mensagem: "90 magic" não autoriza o modelo a escolher melee
-ESTILO_CITADO = {
-    "melee": re.compile(r"\bmelee\b", re.IGNORECASE),
-    "ranged": re.compile(r"\branged?\b", re.IGNORECASE),
-    "magic": re.compile(r"\bmag(?:e|ia|ic)\b", re.IGNORECASE),
-}
+FORA_DO_GE = "Fora do GE (diga se tiver, muda a conta): "
 
 
 def explicar_erro(erro: Exception, settings: Settings) -> str | None:
@@ -172,7 +146,9 @@ class Conselheiro:
                 pedaco, meta = dado
                 # só o texto do agente; a chain de avaliação dentro da ferramenta também gera tokens
                 if meta.get("langgraph_node") == "model" and isinstance(pedaco, AIMessageChunk) and pedaco.text:
-                    yield {"tipo": "token", "texto": pedaco.text}
+                    # cada chamada ao modelo tem um id; um id novo sem ferramenta no meio é o agente pedindo
+                    # para o modelo reescrever, e a tela descarta o rascunho
+                    yield {"tipo": "token", "texto": pedaco.text, "id": pedaco.id}
                 continue
             for atualizacao in dado.values():
                 for m in (atualizacao or {}).get("messages", []):
@@ -200,18 +176,10 @@ class Conselheiro:
 
     # -- o que as ferramentas do agente chamam ---------------------------------------------
 
-    def calcular_para_agente(self, boss: str | None, novo: Pedido, mensagem: str) -> tuple[str, dict | None]:
+    def calcular_para_agente(self, boss: str | None, novo: Pedido) -> tuple[str, dict | None]:
+        """Os argumentos já chegam conferidos contra a mensagem (middleware corrigir_argumentos)."""
         if boss is None:
             return f"Nenhum boss escolhido. Pergunte ao jogador qual destes: {', '.join(self.guias)}.", None
-        if gp := orcamento_na_mensagem(mensagem):
-            novo.orcamento = gp
-        if novo.estilo and not ESTILO_CITADO[novo.estilo].search(mensagem):
-            novo.estilo = None
-        em_tudo = bool(NIVEIS_EM_TUDO_RE.search(mensagem))
-        for campo, citado in CAMPO_CITADO.items():
-            nivel = campo in NIVEIS_PEDIDO
-            if getattr(novo, campo) is not None and not citado.search(mensagem) and not (nivel and em_tudo):
-                setattr(novo, campo, None)
         self.estado.pedido = mesclar(self.estado.pedido, novo)
         if self.estado.pedido.orcamento:
             self.estado.orcamentos[boss] = self.estado.pedido.orcamento
@@ -219,7 +187,15 @@ class Conselheiro:
         guia = self.guias[boss]
         resultados, perfil, tabela = self.calcular(guia)
         avaliacao = self._avaliar(guia, resultados, perfil)
-        conteudo = tabela
+        # o modelo lia a lista "Fora do GE" como parte do setup ("o Salve amulet(ei) é essencial") e elogiava o
+        # "setup atual" de quem não tem nada; o texto para ele deixa isso explícito, a tela continua igual
+        conteudo = tabela.replace(FORA_DO_GE, "Não usados no setup acima (fora do GE; o jogador não disse ter): ")
+        if not perfil.itens:
+            conteudo += "\n\nO jogador não disse ter nenhum item: não existe setup atual para elogiar."
+        # "Dragon crossbow" virava "Dragon hunter crossbow" na resposta; o nome exato da arma vai em destaque
+        armas = [f"{r.familia}: {r.recomendado.nomes()['weapon']}" for r in resultados if r.recomendado.dps > 0]
+        if armas:
+            conteudo += "\n\nArmas escolhidas pelo cálculo (cite com este nome exato): " + "; ".join(armas) + "."
         if avaliacao:
             conteudo += (
                 f"\n\nAvaliação do setup atual: {avaliacao.veredito}. "
@@ -254,11 +230,19 @@ class Conselheiro:
             if ganho <= 0.005:
                 linhas.append(f"- setup {setup.estilo}: não muda nada com o que o jogador tem hoje")
                 continue
-            por_milhao = f", {ganho / preco * 10**6:.2f} DPS por milhão" if preco else ""
             linhas.append(
-                f"- setup {setup.estilo}: {antes.dps:.2f} -> {depois.dps:.2f} DPS ({ganho:+.2f}{por_milhao}), "
+                f"- setup {setup.estilo}: {antes.dps:.2f} -> {depois.dps:.2f} DPS ({ganho:+.2f}), "
                 "comparando só com o que o jogador já tem"
             )
+            # o modelo recomendava a DHCB de 27m no Zulrah, onde o Dragon crossbow de 500k dá o mesmo DPS
+            orcamento = round(perfil.orcamento * setup.peso) if guia.multi_setup else perfil.orcamento
+            calculado = Otimizador(self.data, perfil, formas, setup.estilo, orcamento).resolver()
+            no_slot = next((u for u in calculado.upgrades if u.slot == item.slot), None)
+            if no_slot and not no_slot.para.startswith(item.name):
+                linhas.append(
+                    f"  o cálculo com o orçamento ({fmt_gp(orcamento)}) põe {no_slot.para} nesse slot: "
+                    f"{no_slot.ganho_dps:+.2f} DPS por {fmt_gp(no_slot.custo)}; compare antes de recomendar"
+                )
         return "\n".join(linhas)
 
     def preco(self, nome: str) -> str:
@@ -341,7 +325,7 @@ class Conselheiro:
         tenho = {i.name for i in perfil.itens}
         nao_tem = [n for n in guia.intransferiveis if n not in tenho]
         if nao_tem:
-            linhas.append("Fora do GE (diga se tiver, muda a conta): " + ", ".join(nao_tem))
+            linhas.append(FORA_DO_GE + ", ".join(nao_tem))
 
         hp_boss = {}
         for setup in guia.setups:
